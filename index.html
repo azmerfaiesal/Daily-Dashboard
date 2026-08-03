@@ -313,7 +313,7 @@
     <div class="quote-box" id="quote"></div>
 
     <label class="field-label">Malaysia Tech News — Top 10</label>
-    <div class="sub" style="margin-bottom:8px;">As of 2026-08-03 &middot; refresh manually, no live feed wired up</div>
+    <div class="sub" style="margin-bottom:8px;">Refreshed daily at 8:08am &middot; live, no manual updates needed</div>
     <div class="ticker">
       <div class="ticker-track" id="tech-news-track"></div>
     </div>
@@ -509,34 +509,44 @@
   }
   renderDbaJobs();
 
-  // ---- Malaysia tech news ticker ----
-  // Compiled 2026-08-03 from Lowyat.NET, TechNave, and other MY tech coverage. Static snapshot —
-  // no live news feed wired up, so this list needs a manual refresh to stay current.
-  const techNews = [
-    { title: 'Govt launches AI Malaysia Berhad to lead the National AI Action Plan 2026–2030, replacing NAIO.', meta: 'Lowyat.NET' },
-    { title: 'Free AI software subscriptions open to 100,000 Malaysian youths (18–30) from 31 August.', meta: 'Lowyat.NET' },
-    { title: 'Google rolls out its Gemini Spark AI agent in Malaysia, supporting English and Malay.', meta: 'TechNave' },
-    { title: 'Panasonic to shut its AVC Networks Kuala Lumpur plant by March 2027, affecting ~400 staff.', meta: 'Lowyat.NET' },
-    { title: 'HP Malaysia launches AI-powered laptops, workstations and printers at HP Elevate 2026, from RM3,560.', meta: 'Malaysia tech media' },
-    { title: 'Malaysia to host the 4th ASEAN Battery Technology Conference in Sepang, 19–21 August.', meta: 'TechNave' },
-    { title: 'BYD Malaysia teases the launch of the 2026 Sealion 7 electric vehicle.', meta: 'Malaysia tech media' },
-    { title: 'WhatsApp reportedly testing a "Meta One" subscription for expanded Meta AI features.', meta: 'Malaysia tech media' },
-    { title: 'Report: AI and chip investment positioning Malaysia as Asia’s growth standout.', meta: 'The Japan Times' },
-    { title: 'UGREEN launches a Honkai: Star Rail co-branded charging accessories collection in Malaysia.', meta: 'Malaysia tech media' }
-  ];
+  // ---- Malaysia tech news ticker (live, via the `tech_news` table) ----
+  // Refreshed daily by the "daily-malaysia-tech-news" scheduled task at 8:08am.
+  // Public read-only table — no auth needed, so this loads independent of sign-in state.
+  let techNews = [];
   const techNewsTrackEl = document.getElementById('tech-news-track');
 
   function renderTechNews() {
     const itemsHtml = techNews.map(n => `
       <div class="ticker-item">
-        <div class="title">${n.title}</div>
-        <div class="meta">${n.meta}</div>
+        <div class="title">${n.headline}</div>
+        <div class="meta">${n.source || ''}</div>
       </div>
     `).join('');
     techNewsTrackEl.style.animation = techNews.length >= 4 ? '' : 'none';
-    techNewsTrackEl.innerHTML = techNews.length >= 4 ? itemsHtml + itemsHtml : itemsHtml;
+    techNewsTrackEl.innerHTML = techNews.length
+      ? (techNews.length >= 4 ? itemsHtml + itemsHtml : itemsHtml)
+      : '<div class="ticker-item"><div class="title">No news loaded yet</div><div class="meta">Waiting on the daily 8:08am refresh, or check your connection.</div></div>';
   }
   renderTechNews();
+
+  async function loadTechNews() {
+    const { data, error } = await sb.from('tech_news')
+      .select('*')
+      .order('published_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (!error && data) {
+      techNews = data;
+      renderTechNews();
+    }
+  }
+  loadTechNews();
+
+  // Reflect same-day refreshes (e.g. the 8:08am scheduled task) without needing a reload.
+  sb.channel('tech-news-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tech_news' }, () => {
+      loadTechNews();
+    }).subscribe();
 
   // ---- reading log (synced via the `reading_log` table) ----
   const readingList = [];
