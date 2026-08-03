@@ -107,11 +107,12 @@
     background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 6px;
   }
   .task-item button.remove:hover { color: var(--danger); }
-  .add-row { display: flex; gap: 6px; margin-top: 8px; }
+  .add-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .add-row input {
-    flex: 1; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
+    flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
     color: var(--text); padding: 7px 10px; font-size: 13px;
   }
+  .add-row input[type="text"] { flex-basis: 100%; }
   .add-row button {
     background: var(--card-border); border: none; border-radius: 6px; color: var(--text);
     padding: 7px 12px; cursor: pointer; font-size: 13px;
@@ -209,6 +210,13 @@
   .reading-item button.remove:hover { color: var(--danger); }
 
   footer { margin-top: 28px; color: var(--muted); font-size: 11px; text-align: center; }
+
+  /* Mobile: prevent horizontal overflow from the 340px grid minimum and tight padding */
+  @media (max-width: 480px) {
+    body { padding: 16px; }
+    .grid { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
