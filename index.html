@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Daily Dashboard — Azmer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  /* Default: dark. Overridden below for users whose OS reports a light preference,
+     so the dashboard follows system appearance rather than forcing one theme. */
+  :root {
+    color-scheme: dark;
+    --bg: #0f1115;
+    --card: #171a21;
+    --card-border: #262b35;
+    --surface: #0f1115;
+    --text: #e8e9ec;
+    --muted: #8b909c;
+    --dell-blue: #4a9eff;
+    --hob-amber: #e0a458;
+    --career-purple: #a479e0;
+    --personal-green: #5ec98d;
+    --danger: #e06060;
+    --hover: #313745;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --bg: #f5f6f8;
+      --card: #ffffff;
+      --card-border: #e2e5ea;
+      --surface: #f0f1f4;
+      --text: #1a1d23;
+      --muted: #6b7280;
+      --dell-blue: #2f7bd6;
+      --hob-amber: #c9822a;
+      --career-purple: #8a4fd1;
+      --personal-green: #2f9e64;
+      --danger: #d14343;
+      --hover: #e2e5ea;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--card-border);
+    padding-bottom: 20px;
+  }
+  header h1 { margin: 0; font-size: 22px; font-weight: 600; }
+  header .date { color: var(--muted); font-size: 14px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .card h2 {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.dell { background: var(--dell-blue); }
+  .dot.hob { background: var(--hob-amber); }
+  .dot.career { background: var(--career-purple); }
+  .dot.personal { background: var(--personal-green); }
+  .card .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+
+  /* Priorities */
+  .task-group { margin-bottom: 14px; }
+  .task-group-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 6px; }
+  .task-list { list-style: none; margin: 0; padding: 0; }
+  .task-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .task-item:last-child { border-bottom: none; }
+  .task-item input[type="checkbox"] { accent-color: var(--dell-blue); width: 16px; height: 16px; cursor: pointer; }
+  .task-item span { flex: 1; font-size: 14px; }
+  .task-item.done span { text-decoration: line-through; color: var(--muted); }
+  .task-item button.remove {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 6px;
+  }
+  .task-item button.remove:hover { color: var(--danger); }
+  .add-row { display: flex; gap: 6px; margin-top: 8px; }
+  .add-row input {
+    flex: 1; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
+    color: var(--text); padding: 7px 10px; font-size: 13px;
+  }
+  .add-row button {
+    background: var(--card-border); border: none; border-radius: 6px; color: var(--text);
+    padding: 7px 12px; cursor: pointer; font-size: 13px;
+  }
+  .add-row button:hover { background: var(--hover); }
+
+  /* Auth bar + gate */
+  #auth-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 20px;
+    font-size: 12px; color: var(--muted); flex-wrap: wrap;
+  }
+  .data-btn {
+    background: var(--card-border); border: none; border-radius: 6px; color: var(--text);
+    padding: 7px 12px; cursor: pointer; font-size: 12px;
+  }
+  .data-btn:hover { background: var(--hover); }
+  #auth-gate { max-width: 380px; margin: 0 auto 20px; }
+  #auth-gate input {
+    width: 100%; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
+    color: var(--text); padding: 8px 10px; font-size: 13px; margin-bottom: 10px;
+  }
+  #auth-gate .auth-row { display: flex; gap: 8px; }
+  #auth-gate .auth-row button { flex: 1; }
+  #auth-error { color: var(--danger); font-size: 12px; margin-top: 10px; min-height: 14px; }
+
+  /* Career tracker */
+  .cert-row { margin-bottom: 14px; }
+  .cert-row-top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+  .cert-row-top .pct { color: var(--muted); }
+  .bar-track { background: var(--surface); border-radius: 6px; height: 8px; overflow: hidden; }
+  .bar-fill { background: var(--career-purple); height: 100%; transition: width 0.15s ease; }
+  .bar-controls { display: flex; gap: 6px; margin-top: 6px; }
+  .bar-controls button {
+    background: var(--card-border); border: none; border-radius: 4px; color: var(--text);
+    width: 24px; height: 24px; cursor: pointer; font-size: 13px;
+  }
+  .bar-controls button:hover { background: var(--hover); }
+  label.field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); display: block; margin: 14px 0 6px; }
+  select, .num-input {
+    width: 100%; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
+    color: var(--text); padding: 7px 10px; font-size: 13px;
+  }
+
+  /* Auto-scrolling DBA jobs ticker */
+  .ticker {
+    position: relative; height: 150px; overflow: hidden;
+    background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
+  }
+  .ticker-track { position: absolute; width: 100%; animation: ticker-scroll 18s linear infinite; }
+  .ticker-track:hover { animation-play-state: paused; }
+  .ticker-item { padding: 8px 12px; font-size: 12px; border-bottom: 1px solid var(--card-border); }
+  .ticker-item:last-child { border-bottom: none; }
+  .ticker-item .title { font-weight: 600; margin-bottom: 2px; }
+  .ticker-item .meta { color: var(--muted); }
+  @keyframes ticker-scroll {
+    0%   { transform: translateY(0); }
+    100% { transform: translateY(-50%); }
+  }
+
+  /* House of Bracelet */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .stat-box { background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px; }
+  .stat-box .stat-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .stat-box input { width: 100%; background: none; border: none; color: var(--text); font-size: 20px; font-weight: 600; padding: 0; }
+  textarea {
+    width: 100%; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
+    color: var(--text); padding: 8px 10px; font-size: 13px; resize: vertical; min-height: 50px; font-family: inherit;
+  }
+
+  /* Personal */
+  .quote-box {
+    background: var(--surface); border-left: 3px solid var(--personal-green); border-radius: 6px;
+    padding: 12px 14px; font-size: 13px; color: var(--muted); font-style: italic; margin-bottom: 12px;
+  }
+  .link-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .link-row a {
+    background: var(--card-border); color: var(--text); text-decoration: none; font-size: 12px;
+    padding: 6px 10px; border-radius: 6px;
+  }
+  .link-row a:hover { background: var(--hover); }
+  .spend-total { text-align: right; font-size: 13px; font-weight: 600; margin-top: 8px; color: var(--personal-green); }
+  .add-row input.amount { max-width: 90px; flex: none; }
+  .add-row input.pages { max-width: 70px; flex: none; }
+
+  /* Reading log */
+  .reading-item { padding: 8px 0; border-bottom: 1px solid var(--card-border); }
+  .reading-item:last-child { border-bottom: none; }
+  .reading-item-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 5px; }
+  .reading-item-top .pages-info { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  .reading-item-top input.current-page {
+    width: 50px; background: var(--surface); border: 1px solid var(--card-border); border-radius: 4px;
+    color: var(--text); font-size: 12px; padding: 3px 5px; text-align: center;
+  }
+  .reading-item button.remove { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 6px; }
+  .reading-item button.remove:hover { color: var(--danger); }
+
+  footer { margin-top: 28px; color: var(--muted); font-size: 11px; text-align: center; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Daily Dashboard</h1>
+  <div class="date" id="today"></div>
+</header>
+
+<div id="auth-bar">
+  <span id="auth-status">Checking session…</span>
+  <button id="signout-btn" class="data-btn" style="display:none;">Sign out</button>
+</div>
+
+<div id="auth-gate" class="card">
+  <h2>Sign in</h2>
+  <div class="sub">Your data is private to your account — synced live across every device you're signed in on, invisible to anyone else even with this page's URL.</div>
+  <label class="field-label">Email</label>
+  <input type="email" id="auth-email" placeholder="you@example.com" autocomplete="email">
+  <label class="field-label">Password</label>
+  <input type="password" id="auth-password" placeholder="At least 6 characters" autocomplete="current-password">
+  <div class="auth-row">
+    <button id="signin-btn" class="data-btn">Sign In</button>
+    <button id="signup-btn" class="data-btn">Sign Up</button>
+  </div>
+  <div id="auth-error"></div>
+</div>
+
+<div class="grid" id="dashboard-content" style="display:none;">
+
+  <!-- Today's Priorities -->
+  <div class="card">
+    <h2><span class="dot dell"></span>Today's Priorities</h2>
+    <div class="sub">Across Dell, House of Bracelet, side hustle, personal. Synced live to your account — same data on every signed-in device.</div>
+
+    <div id="priorities"></div>
+  </div>
+
+  <!-- Career Improvement Tracker -->
+  <div class="card">
+    <h2><span class="dot career"></span>Career Improvement Tracker</h2>
+    <div class="sub">PostgreSQL depth + Azure breadth</div>
+
+    <label class="field-label">Daily Learning Log — PostgreSQL &amp; Azure (AZ-104)</label>
+    <textarea id="learning-log" placeholder="What did you learn today?"></textarea>
+
+    <label class="field-label">Weekly Cyberjaya DBA Jobs — Latest Run</label>
+    <div class="sub" style="margin-bottom:8px;">Scheduled Wednesdays 9:06am &middot; last run 2026-08-03 (ad-hoc) &middot; next scheduled 2026-08-05</div>
+    <div class="ticker">
+      <div class="ticker-track" id="dba-ticker-track"></div>
+    </div>
+
+    <label class="field-label">Notes</label>
+    <textarea id="career-notes" placeholder="e.g. which posting to follow up on, interview prep needed..."></textarea>
+  </div>
+
+  <!-- House of Bracelet Snapshot -->
+  <div class="card">
+    <h2><span class="dot hob"></span>House of Bracelet Snapshot</h2>
+    <div class="sub">Manual entry — no Shopee/Instagram connector wired up yet</div>
+
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="stat-label">Orders today</div>
+        <input type="number" min="0" value="0" id="orders-today">
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Pending ships</div>
+        <input type="number" min="0" value="0" id="pending-ships">
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Shipped</div>
+        <input type="number" min="0" value="0" id="shipped">
+      </div>
+    </div>
+
+    <label class="field-label">Inventory / restock alerts</label>
+    <textarea id="hob-alerts" placeholder="e.g. low on gold thread, need clasps..."></textarea>
+
+    <label class="field-label">Today's focus</label>
+    <textarea id="hob-focus" placeholder="e.g. reply to Shopee messages, post new listing..."></textarea>
+
+    <div class="link-row">
+      <a href="https://shopee.com.my" target="_blank" rel="noopener">Shopee</a>
+      <a href="https://instagram.com/houseofbracelet" target="_blank" rel="noopener">@houseofbracelet</a>
+    </div>
+  </div>
+
+  <!-- Personal / Journaling -->
+  <div class="card">
+    <h2><span class="dot personal"></span>Personal</h2>
+    <div class="sub">Family, reading, coffee, football — the non-work layer</div>
+
+    <div class="quote-box" id="quote"></div>
+
+    <label class="field-label">Malaysia Tech News — Top 10</label>
+    <div class="sub" style="margin-bottom:8px;">As of 2026-08-03 &middot; refresh manually, no live feed wired up</div>
+    <div class="ticker">
+      <div class="ticker-track" id="tech-news-track"></div>
+    </div>
+
+    <label class="field-label">Braindump</label>
+    <textarea id="braindump" placeholder="What mattered today?"></textarea>
+
+    <label class="field-label">Reading Log</label>
+    <ul id="reading-list" style="list-style:none; margin:0; padding:0;"></ul>
+    <div class="add-row">
+      <input type="text" id="reading-title" placeholder="Book title">
+      <input type="number" id="reading-total" class="pages" placeholder="Total pg" min="1">
+      <input type="number" id="reading-current" class="pages" placeholder="At pg" min="0">
+      <button id="reading-add-btn">Add</button>
+    </div>
+
+    <label class="field-label">Spending Log</label>
+    <ul class="task-list" id="spending-list"></ul>
+    <div class="add-row">
+      <input type="text" id="spend-desc" placeholder="What for?">
+      <input type="number" id="spend-amount" class="amount" placeholder="RM" min="0" step="0.01">
+      <button id="spend-add-btn">Add</button>
+    </div>
+    <div class="spend-total" id="spend-total">Total: RM 0.00</div>
+
+    <div class="link-row">
+      <a href="./Daily%20Notes/">Today's Daily Note</a>
+      <a href="./user.md">user.md</a>
+      <a href="./identity.md">identity.md</a>
+      <a href="./soul.md">soul.md</a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Daily Dashboard · data synced live via Supabase, tied to your signed-in account · edit this file directly to change layout or wording
+</footer>
+
+<script>
+  // ---- date ----
+  document.getElementById('today').textContent = new Date().toLocaleDateString('en-MY', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  // ---- quotes (rotate daily, personal touch) ----
+  const quotes = [
+    "“Desire is a contract you make with yourself to be unhappy until you get what you want.” — Naval Ravikanth",
+    "“The most important skill for getting rich is becoming a perpetual learner.” — Naval Ravikanth",
+    "“A calm mind, a fit body, a house full of love. These things cannot be bought.” — Naval Ravikanth",
+    "Small consistent reps beat sporadic bursts — in the gym, in the code, in the shop."
+  ];
+  document.getElementById('quote').textContent = quotes[new Date().getDate() % quotes.length];
+
+  // ---- Supabase client ----
+  const SUPABASE_URL = 'https://pakfyyvdfwxglcjkatqz.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_sC0C_y4pbJOUEANyk7o8Tg_u5PZpzVs';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  let currentUser = null;
+  let realtimeChannels = [];
+
+  function debounce(fn, ms) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  }
+
+  // ---- priorities (synced via the `priorities` table) ----
+  const categories = [
+    { key: 'dell', label: 'Dell / DB Engineering', dotClass: 'dell' },
+    { key: 'hob', label: 'House of Bracelet', dotClass: 'hob' },
+    { key: 'career', label: 'Side Hustle', dotClass: 'career' },
+    { key: 'personal', label: 'Personal', dotClass: 'personal' }
+  ];
+  const state = {}; // category key -> array of {id, text, done}
+  categories.forEach(c => state[c.key] = []);
+
+  const prioritiesEl = document.getElementById('priorities');
+
+  function renderPriorities() {
+    prioritiesEl.innerHTML = '';
+    categories.forEach(cat => {
+      const group = document.createElement('div');
+      group.className = 'task-group';
+
+      const label = document.createElement('div');
+      label.className = 'task-group-label';
+      label.textContent = cat.label;
+      group.appendChild(label);
+
+      const list = document.createElement('ul');
+      list.className = 'task-list';
+      state[cat.key].forEach(task => {
+        const li = document.createElement('li');
+        li.className = 'task-item' + (task.done ? ' done' : '');
+        li.innerHTML = `
+          <input type="checkbox" ${task.done ? 'checked' : ''} data-cat="${cat.key}" data-id="${task.id}" class="toggle">
+          <span>${task.text}</span>
+          <button class="remove" data-cat="${cat.key}" data-id="${task.id}">&times;</button>
+        `;
+        list.appendChild(li);
+      });
+      group.appendChild(list);
+
+      const addRow = document.createElement('div');
+      addRow.className = 'add-row';
+      addRow.innerHTML = `
+        <input type="text" placeholder="Add a task..." data-cat="${cat.key}" class="add-input">
+        <button data-cat="${cat.key}" class="add-btn">Add</button>
+      `;
+      group.appendChild(addRow);
+
+      prioritiesEl.appendChild(group);
+    });
+
+    prioritiesEl.querySelectorAll('.toggle').forEach(el => {
+      el.addEventListener('change', async e => {
+        const { cat, id } = e.target.dataset;
+        const task = state[cat].find(t => t.id === id);
+        if (!task) return;
+        task.done = e.target.checked;
+        renderPriorities();
+        await sb.from('priorities').update({ done: task.done }).eq('id', id);
+      });
+    });
+    prioritiesEl.querySelectorAll('.remove').forEach(el => {
+      el.addEventListener('click', async e => {
+        const { cat, id } = e.target.dataset;
+        state[cat] = state[cat].filter(t => t.id !== id);
+        renderPriorities();
+        await sb.from('priorities').delete().eq('id', id);
+      });
+    });
+    prioritiesEl.querySelectorAll('.add-btn').forEach(el => {
+      el.addEventListener('click', async e => {
+        const cat = e.target.dataset.cat;
+        const input = prioritiesEl.querySelector(`.add-input[data-cat="${cat}"]`);
+        const text = input.value.trim();
+        if (text && currentUser) {
+          input.value = '';
+          const { data, error } = await sb.from('priorities')
+            .insert({ user_id: currentUser.id, category: cat, text, done: false })
+            .select().single();
+          if (!error) {
+            state[cat].push(data);
+            renderPriorities();
+          }
+        }
+      });
+    });
+    prioritiesEl.querySelectorAll('.add-input').forEach(el => {
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          prioritiesEl.querySelector(`.add-btn[data-cat="${e.target.dataset.cat}"]`).click();
+        }
+      });
+    });
+  }
+  renderPriorities();
+
+  async function loadPriorities() {
+    categories.forEach(c => state[c.key] = []);
+    const { data, error } = await sb.from('priorities').select('*').order('created_at', { ascending: true });
+    if (!error && data) data.forEach(row => { if (state[row.category]) state[row.category].push(row); });
+    renderPriorities();
+  }
+
+  // ---- weekly Cyberjaya DBA jobs ticker ----
+  // Sourced from the "weekly-cyberjaya-dba-jobs" scheduled task (runs Wednesdays 9:06am).
+  // As of 2026-08-03 the task also saves a persistent copy into career/dba-jobs/ in the vault,
+  // so this list can be refreshed from there after each run. Rows below are from the 2026-08-03 ad-hoc run.
+  const dbaJobs = [
+    { title: 'Lead Database Platform Engineer — Great Eastern', meta: 'Cyberjaya, On-site · Oracle/SQL Server/PostgreSQL/MySQL/DB2 · Lead/Principal · MYR 360,000–600,000/yr · Today' },
+    { title: 'Lead, Database Administrator — Great Eastern', meta: 'Cyberjaya, On-site · Lead · MYR 180,000–240,000/yr · 7 days ago' },
+    { title: 'Database Administrator — Great Eastern', meta: 'Cyberjaya, On-site · Senior · MYR 120,000–180,000/yr · 4 days ago' },
+    { title: 'Senior Database SME (Oracle RAC/HA) — AmBank Group', meta: 'Damansara · Oracle, SQL Server, MySQL, PostgreSQL · SME/Principal · RM 16,000–20,000/mo · 21 days ago' },
+    { title: 'Senior DBA Engineer — CTOS Data Systems', meta: 'Petaling Jaya · MySQL, Oracle/Tibero, MSSQL, PostgreSQL · Senior · Not disclosed · 4 days ago' },
+    { title: 'Oracle Database Administrator — HeiTech Padu Berhad', meta: 'Cyberjaya, On-site · Oracle (GoldenGate, ODI) · Contract/Temp · 13 days ago' },
+    { title: 'Senior Database Administrator (MSSQL) — Oxydata Software', meta: 'KL City Centre, Hybrid · MSSQL · Senior · 30+ days ago' },
+    { title: 'Database Administrator (DBA) — ONL Biz Solutions', meta: 'Cheras, KL · SQL Server, MySQL, PostgreSQL · RM 7,500–8,000/mo · 18 days ago' },
+    { title: 'Database Administrator — Infinitium Group', meta: 'Ara Damansara, Hybrid · PostgreSQL, MSSQL, EDB · 7 days ago' },
+    { title: 'Database (DBA) Engineer — CMA Solutions', meta: 'Subang Jaya · SQL Server, PostgreSQL, MySQL · RM 5,000–7,500/mo · 3 days ago' }
+  ];
+  const dbaTrackEl = document.getElementById('dba-ticker-track');
+
+  function renderDbaJobs() {
+    const itemsHtml = dbaJobs.map(j => `
+      <div class="ticker-item">
+        <div class="title">${j.title}</div>
+        <div class="meta">${j.meta}</div>
+      </div>
+    `).join('');
+    if (dbaJobs.length < 4) {
+      dbaTrackEl.style.animation = 'none';
+      dbaTrackEl.innerHTML = itemsHtml;
+    } else {
+      dbaTrackEl.style.animation = '';
+      dbaTrackEl.innerHTML = itemsHtml + itemsHtml; // duplicated for seamless loop
+    }
+  }
+  renderDbaJobs();
+
+  // ---- Malaysia tech news ticker ----
+  // Compiled 2026-08-03 from Lowyat.NET, TechNave, and other MY tech coverage. Static snapshot —
+  // no live news feed wired up, so this list needs a manual refresh to stay current.
+  const techNews = [
+    { title: 'Govt launches AI Malaysia Berhad to lead the National AI Action Plan 2026–2030, replacing NAIO.', meta: 'Lowyat.NET' },
+    { title: 'Free AI software subscriptions open to 100,000 Malaysian youths (18–30) from 31 August.', meta: 'Lowyat.NET' },
+    { title: 'Google rolls out its Gemini Spark AI agent in Malaysia, supporting English and Malay.', meta: 'TechNave' },
+    { title: 'Panasonic to shut its AVC Networks Kuala Lumpur plant by March 2027, affecting ~400 staff.', meta: 'Lowyat.NET' },
+    { title: 'HP Malaysia launches AI-powered laptops, workstations and printers at HP Elevate 2026, from RM3,560.', meta: 'Malaysia tech media' },
+    { title: 'Malaysia to host the 4th ASEAN Battery Technology Conference in Sepang, 19–21 August.', meta: 'TechNave' },
+    { title: 'BYD Malaysia teases the launch of the 2026 Sealion 7 electric vehicle.', meta: 'Malaysia tech media' },
+    { title: 'WhatsApp reportedly testing a "Meta One" subscription for expanded Meta AI features.', meta: 'Malaysia tech media' },
+    { title: 'Report: AI and chip investment positioning Malaysia as Asia’s growth standout.', meta: 'The Japan Times' },
+    { title: 'UGREEN launches a Honkai: Star Rail co-branded charging accessories collection in Malaysia.', meta: 'Malaysia tech media' }
+  ];
+  const techNewsTrackEl = document.getElementById('tech-news-track');
+
+  function renderTechNews() {
+    const itemsHtml = techNews.map(n => `
+      <div class="ticker-item">
+        <div class="title">${n.title}</div>
+        <div class="meta">${n.meta}</div>
+      </div>
+    `).join('');
+    techNewsTrackEl.style.animation = techNews.length >= 4 ? '' : 'none';
+    techNewsTrackEl.innerHTML = techNews.length >= 4 ? itemsHtml + itemsHtml : itemsHtml;
+  }
+  renderTechNews();
+
+  // ---- reading log (synced via the `reading_log` table) ----
+  const readingList = [];
+  const readingListEl = document.getElementById('reading-list');
+
+  function renderReading() {
+    readingListEl.innerHTML = '';
+    readingList.forEach(book => {
+      const pct = Math.min(100, Math.round((book.current_page / book.total_pages) * 100));
+      const li = document.createElement('li');
+      li.className = 'reading-item';
+      li.innerHTML = `
+        <div class="reading-item-top">
+          <span>${book.title}</span>
+          <span class="pages-info">
+            <input type="number" class="current-page" value="${book.current_page}" min="0" max="${book.total_pages}" data-id="${book.id}">
+            / ${book.total_pages} pg (${isNaN(pct) ? 0 : pct}%)
+            <button class="remove" data-id="${book.id}">&times;</button>
+          </span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width:${isNaN(pct) ? 0 : pct}%"></div></div>
+      `;
+      readingListEl.appendChild(li);
+    });
+    readingListEl.querySelectorAll('.current-page').forEach(el => {
+      el.addEventListener('change', async e => {
+        const id = e.target.dataset.id;
+        const book = readingList.find(b => b.id === id);
+        if (!book) return;
+        const val = parseInt(e.target.value, 10);
+        book.current_page = isNaN(val) ? 0 : Math.min(val, book.total_pages);
+        renderReading();
+        await sb.from('reading_log').update({ current_page: book.current_page, updated_at: new Date().toISOString() }).eq('id', id);
+      });
+    });
+    readingListEl.querySelectorAll('.remove').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        const id = e.target.dataset.id;
+        readingList.splice(readingList.findIndex(b => b.id === id), 1);
+        renderReading();
+        await sb.from('reading_log').delete().eq('id', id);
+      });
+    });
+  }
+  renderReading();
+
+  const readingTitleEl = document.getElementById('reading-title');
+  const readingTotalEl = document.getElementById('reading-total');
+  const readingCurrentEl = document.getElementById('reading-current');
+  async function addReading() {
+    const title = readingTitleEl.value.trim();
+    const total = parseInt(readingTotalEl.value, 10);
+    const current = parseInt(readingCurrentEl.value, 10) || 0;
+    if (title && !isNaN(total) && total > 0 && currentUser) {
+      readingTitleEl.value = '';
+      readingTotalEl.value = '';
+      readingCurrentEl.value = '';
+      const { data, error } = await sb.from('reading_log')
+        .insert({ user_id: currentUser.id, title, total_pages: total, current_page: Math.min(current, total) })
+        .select().single();
+      if (!error) {
+        readingList.push(data);
+        renderReading();
+      }
+    }
+  }
+  document.getElementById('reading-add-btn').addEventListener('click', addReading);
+  [readingTitleEl, readingTotalEl, readingCurrentEl].forEach(el => {
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); addReading(); }
+    });
+  });
+
+  async function loadReading() {
+    readingList.length = 0;
+    const { data, error } = await sb.from('reading_log').select('*').order('created_at', { ascending: true });
+    if (!error && data) data.forEach(b => readingList.push(b));
+    renderReading();
+  }
+
+  // ---- spending log (synced via the `spending_log` table) ----
+  const spending = [];
+  const spendingListEl = document.getElementById('spending-list');
+  const spendTotalEl = document.getElementById('spend-total');
+
+  function renderSpending() {
+    spendingListEl.innerHTML = '';
+    spending.forEach(item => {
+      const li = document.createElement('li');
+      li.className = 'task-item';
+      li.innerHTML = `
+        <span>${item.description}</span>
+        <span style="color:var(--muted); font-size:12px;">RM ${Number(item.amount).toFixed(2)}</span>
+        <button class="remove" data-id="${item.id}">&times;</button>
+      `;
+      spendingListEl.appendChild(li);
+    });
+    const total = spending.reduce((sum, i) => sum + Number(i.amount), 0);
+    spendTotalEl.textContent = `Total: RM ${total.toFixed(2)}`;
+
+    spendingListEl.querySelectorAll('.remove').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        const id = e.target.dataset.id;
+        spending.splice(spending.findIndex(s => s.id === id), 1);
+        renderSpending();
+        await sb.from('spending_log').delete().eq('id', id);
+      });
+    });
+  }
+  renderSpending();
+
+  const spendDescEl = document.getElementById('spend-desc');
+  const spendAmountEl = document.getElementById('spend-amount');
+  async function addSpend() {
+    const desc = spendDescEl.value.trim();
+    const amount = parseFloat(spendAmountEl.value);
+    if (desc && !isNaN(amount) && currentUser) {
+      spendDescEl.value = '';
+      spendAmountEl.value = '';
+      const { data, error } = await sb.from('spending_log')
+        .insert({ user_id: currentUser.id, description: desc, amount })
+        .select().single();
+      if (!error) {
+        spending.push(data);
+        renderSpending();
+      }
+    }
+  }
+  document.getElementById('spend-add-btn').addEventListener('click', addSpend);
+  [spendDescEl, spendAmountEl].forEach(el => {
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); addSpend(); }
+    });
+  });
+
+  async function loadSpending() {
+    spending.length = 0;
+    const { data, error } = await sb.from('spending_log').select('*').order('created_at', { ascending: true });
+    if (!error && data) data.forEach(s => spending.push(s));
+    renderSpending();
+  }
+
+  // ---- career tracker (single row per user, `career_tracker` table) ----
+  const saveCareerTracker = debounce(async () => {
+    if (!currentUser) return;
+    await sb.from('career_tracker').upsert({
+      user_id: currentUser.id,
+      learning_log: document.getElementById('learning-log').value,
+      notes: document.getElementById('career-notes').value,
+      updated_at: new Date().toISOString()
+    });
+  }, 700);
+  document.getElementById('learning-log').addEventListener('input', saveCareerTracker);
+  document.getElementById('career-notes').addEventListener('input', saveCareerTracker);
+
+  async function loadCareerTracker() {
+    const { data } = await sb.from('career_tracker').select('*').maybeSingle();
+    document.getElementById('learning-log').value = data?.learning_log || '';
+    document.getElementById('career-notes').value = data?.notes || '';
+  }
+
+  // ---- House of Bracelet snapshot (single row per user, `hob_snapshot` table) ----
+  const saveHobSnapshot = debounce(async () => {
+    if (!currentUser) return;
+    await sb.from('hob_snapshot').upsert({
+      user_id: currentUser.id,
+      orders_today: parseInt(document.getElementById('orders-today').value, 10) || 0,
+      pending_ships: parseInt(document.getElementById('pending-ships').value, 10) || 0,
+      shipped: parseInt(document.getElementById('shipped').value, 10) || 0,
+      alerts: document.getElementById('hob-alerts').value,
+      focus: document.getElementById('hob-focus').value,
+      updated_at: new Date().toISOString()
+    });
+  }, 700);
+  ['orders-today', 'pending-ships', 'shipped', 'hob-alerts', 'hob-focus'].forEach(id => {
+    document.getElementById(id).addEventListener('input', saveHobSnapshot);
+  });
+
+  async function loadHobSnapshot() {
+    const { data } = await sb.from('hob_snapshot').select('*').maybeSingle();
+    document.getElementById('orders-today').value = data?.orders_today ?? 0;
+    document.getElementById('pending-ships').value = data?.pending_ships ?? 0;
+    document.getElementById('shipped').value = data?.shipped ?? 0;
+    document.getElementById('hob-alerts').value = data?.alerts || '';
+    document.getElementById('hob-focus').value = data?.focus || '';
+  }
+
+  // ---- Personal braindump (single row per user, `personal_notes` table) ----
+  const saveBraindump = debounce(async () => {
+    if (!currentUser) return;
+    await sb.from('personal_notes').upsert({
+      user_id: currentUser.id,
+      braindump: document.getElementById('braindump').value,
+      updated_at: new Date().toISOString()
+    });
+  }, 700);
+  document.getElementById('braindump').addEventListener('input', saveBraindump);
+
+  async function loadPersonalNotes() {
+    const { data } = await sb.from('personal_notes').select('*').maybeSingle();
+    document.getElementById('braindump').value = data?.braindump || '';
+  }
+
+  // ---- realtime: reflect changes made on another device immediately ----
+  function subscribeRealtime() {
+    if (!currentUser) return;
+    const uid = currentUser.id;
+
+    const prioritiesCh = sb.channel('priorities-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'priorities', filter: `user_id=eq.${uid}` }, payload => {
+        if (payload.eventType === 'INSERT') {
+          const row = payload.new;
+          if (state[row.category] && !state[row.category].some(t => t.id === row.id)) state[row.category].push(row);
+        } else if (payload.eventType === 'UPDATE') {
+          const row = payload.new;
+          const arr = state[row.category] || [];
+          const idx = arr.findIndex(t => t.id === row.id);
+          if (idx > -1) arr[idx] = row;
+        } else if (payload.eventType === 'DELETE') {
+          const row = payload.old;
+          categories.forEach(c => { state[c.key] = state[c.key].filter(t => t.id !== row.id); });
+        }
+        renderPriorities();
+      }).subscribe();
+
+    const spendingCh = sb.channel('spending-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'spending_log', filter: `user_id=eq.${uid}` }, payload => {
+        if (payload.eventType === 'INSERT') {
+          if (!spending.some(s => s.id === payload.new.id)) spending.push(payload.new);
+        } else if (payload.eventType === 'DELETE') {
+          const idx = spending.findIndex(s => s.id === payload.old.id);
+          if (idx > -1) spending.splice(idx, 1);
+        }
+        renderSpending();
+      }).subscribe();
+
+    const readingCh = sb.channel('reading-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reading_log', filter: `user_id=eq.${uid}` }, payload => {
+        if (payload.eventType === 'INSERT') {
+          if (!readingList.some(b => b.id === payload.new.id)) readingList.push(payload.new);
+        } else if (payload.eventType === 'UPDATE') {
+          const idx = readingList.findIndex(b => b.id === payload.new.id);
+          if (idx > -1) readingList[idx] = payload.new;
+        } else if (payload.eventType === 'DELETE') {
+          const idx = readingList.findIndex(b => b.id === payload.old.id);
+          if (idx > -1) readingList.splice(idx, 1);
+        }
+        renderReading();
+      }).subscribe();
+
+    const careerCh = sb.channel('career-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'career_tracker', filter: `user_id=eq.${uid}` }, payload => {
+        const row = payload.new;
+        if (row) {
+          document.getElementById('learning-log').value = row.learning_log || '';
+          document.getElementById('career-notes').value = row.notes || '';
+        }
+      }).subscribe();
+
+    const hobCh = sb.channel('hob-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hob_snapshot', filter: `user_id=eq.${uid}` }, payload => {
+        const row = payload.new;
+        if (row) {
+          document.getElementById('orders-today').value = row.orders_today;
+          document.getElementById('pending-ships').value = row.pending_ships;
+          document.getElementById('shipped').value = row.shipped;
+          document.getElementById('hob-alerts').value = row.alerts || '';
+          document.getElementById('hob-focus').value = row.focus || '';
+        }
+      }).subscribe();
+
+    const notesCh = sb.channel('notes-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'personal_notes', filter: `user_id=eq.${uid}` }, payload => {
+        const row = payload.new;
+        if (row) document.getElementById('braindump').value = row.braindump || '';
+      }).subscribe();
+
+    realtimeChannels = [prioritiesCh, spendingCh, readingCh, careerCh, hobCh, notesCh];
+  }
+
+  function unsubscribeRealtime() {
+    realtimeChannels.forEach(ch => sb.removeChannel(ch));
+    realtimeChannels = [];
+  }
+
+  // ---- auth: gate the whole dashboard behind a signed-in Supabase session ----
+  const authGateEl = document.getElementById('auth-gate');
+  const dashboardEl = document.getElementById('dashboard-content');
+  const authStatusEl = document.getElementById('auth-status');
+  const signoutBtn = document.getElementById('signout-btn');
+  const authErrorEl = document.getElementById('auth-error');
+
+  async function onSignedIn(user) {
+    currentUser = user;
+    authGateEl.style.display = 'none';
+    dashboardEl.style.display = 'grid';
+    authStatusEl.textContent = `Signed in as ${user.email}`;
+    signoutBtn.style.display = 'inline-block';
+    await Promise.all([
+      loadPriorities(), loadReading(), loadSpending(),
+      loadCareerTracker(), loadHobSnapshot(), loadPersonalNotes()
+    ]);
+    subscribeRealtime();
+  }
+
+  function onSignedOut() {
+    currentUser = null;
+    unsubscribeRealtime();
+    authGateEl.style.display = 'block';
+    dashboardEl.style.display = 'none';
+    authStatusEl.textContent = 'Not signed in.';
+    signoutBtn.style.display = 'none';
+  }
+
+  document.getElementById('signin-btn').addEventListener('click', async () => {
+    authErrorEl.style.color = '';
+    authErrorEl.textContent = '';
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) authErrorEl.textContent = error.message;
+  });
+
+  document.getElementById('signup-btn').addEventListener('click', async () => {
+    authErrorEl.style.color = '';
+    authErrorEl.textContent = '';
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    if (password.length < 6) { authErrorEl.textContent = 'Password must be at least 6 characters.'; return; }
+    const { error } = await sb.auth.signUp({ email, password });
+    if (error) { authErrorEl.textContent = error.message; return; }
+    authErrorEl.style.color = 'var(--personal-green)';
+    authErrorEl.textContent = 'Check your email to confirm your account, then sign in.';
+  });
+
+  signoutBtn.addEventListener('click', async () => { await sb.auth.signOut(); });
+
+  sb.auth.onAuthStateChange((event, session) => {
+    if (session && session.user) {
+      if (!currentUser || currentUser.id !== session.user.id) {
+        onSignedIn(session.user);
+      } else {
+        currentUser = session.user;
+      }
+    } else if (currentUser) {
+      onSignedOut();
+    } else {
+      onSignedOut();
+    }
+  });
+</script>
+
+</body>
+</html>
