@@ -200,8 +200,6 @@
     padding: 6px 10px; border-radius: 6px;
   }
   .link-row a:hover { background: var(--hover); }
-  .spend-total { text-align: right; font-size: 13px; font-weight: 600; margin-top: 8px; color: var(--personal-green); }
-  .add-row input.amount { max-width: 90px; flex: none; }
   .add-row input.pages { max-width: 70px; flex: none; }
 
   /* Reading log */
@@ -336,15 +334,6 @@
       <input type="number" id="reading-current" class="pages" placeholder="At pg" min="0">
       <button id="reading-add-btn">Add</button>
     </div>
-
-    <label class="field-label">Spending Log</label>
-    <ul class="task-list" id="spending-list"></ul>
-    <div class="add-row">
-      <input type="text" id="spend-desc" placeholder="What for?">
-      <input type="number" id="spend-amount" class="amount" placeholder="RM" min="0" step="0.01">
-      <button id="spend-add-btn">Add</button>
-    </div>
-    <div class="spend-total" id="spend-total">Total: RM 0.00</div>
   </div>
 
 </div>
@@ -606,68 +595,6 @@
     renderReading();
   }
 
-  // ---- spending log (synced via the `spending_log` table) ----
-  const spending = [];
-  const spendingListEl = document.getElementById('spending-list');
-  const spendTotalEl = document.getElementById('spend-total');
-
-  function renderSpending() {
-    spendingListEl.innerHTML = '';
-    spending.forEach(item => {
-      const li = document.createElement('li');
-      li.className = 'task-item';
-      li.innerHTML = `
-        <span>${item.description}</span>
-        <span style="color:var(--muted); font-size:12px;">RM ${Number(item.amount).toFixed(2)}</span>
-        <button class="remove" data-id="${item.id}">&times;</button>
-      `;
-      spendingListEl.appendChild(li);
-    });
-    const total = spending.reduce((sum, i) => sum + Number(i.amount), 0);
-    spendTotalEl.textContent = `Total: RM ${total.toFixed(2)}`;
-
-    spendingListEl.querySelectorAll('.remove').forEach(btn => {
-      btn.addEventListener('click', async e => {
-        const id = e.target.dataset.id;
-        spending.splice(spending.findIndex(s => s.id === id), 1);
-        renderSpending();
-        await sb.from('spending_log').delete().eq('id', id);
-      });
-    });
-  }
-  renderSpending();
-
-  const spendDescEl = document.getElementById('spend-desc');
-  const spendAmountEl = document.getElementById('spend-amount');
-  async function addSpend() {
-    const desc = spendDescEl.value.trim();
-    const amount = parseFloat(spendAmountEl.value);
-    if (desc && !isNaN(amount) && currentUser) {
-      spendDescEl.value = '';
-      spendAmountEl.value = '';
-      const { data, error } = await sb.from('spending_log')
-        .insert({ user_id: currentUser.id, description: desc, amount })
-        .select().single();
-      if (!error) {
-        spending.push(data);
-        renderSpending();
-      }
-    }
-  }
-  document.getElementById('spend-add-btn').addEventListener('click', addSpend);
-  [spendDescEl, spendAmountEl].forEach(el => {
-    el.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); addSpend(); }
-    });
-  });
-
-  async function loadSpending() {
-    spending.length = 0;
-    const { data, error } = await sb.from('spending_log').select('*').order('created_at', { ascending: true });
-    if (!error && data) data.forEach(s => spending.push(s));
-    renderSpending();
-  }
-
   // ---- career tracker (single row per user, `career_tracker` table) ----
   const saveCareerTracker = debounce(async () => {
     if (!currentUser) return;
@@ -740,17 +667,6 @@
         loadPriorities();
       }).subscribe();
 
-    const spendingCh = sb.channel('spending-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'spending_log', filter: `user_id=eq.${uid}` }, payload => {
-        if (payload.eventType === 'INSERT') {
-          if (!spending.some(s => s.id === payload.new.id)) spending.push(payload.new);
-        } else if (payload.eventType === 'DELETE') {
-          const idx = spending.findIndex(s => s.id === payload.old.id);
-          if (idx > -1) spending.splice(idx, 1);
-        }
-        renderSpending();
-      }).subscribe();
-
     const readingCh = sb.channel('reading-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reading_log', filter: `user_id=eq.${uid}` }, payload => {
         if (payload.eventType === 'INSERT') {
@@ -792,7 +708,7 @@
         if (row) document.getElementById('braindump').value = row.braindump || '';
       }).subscribe();
 
-    realtimeChannels = [prioritiesCh, spendingCh, readingCh, careerCh, hobCh, notesCh];
+    realtimeChannels = [prioritiesCh, readingCh, careerCh, hobCh, notesCh];
   }
 
   function unsubscribeRealtime() {
@@ -814,7 +730,7 @@
     authStatusEl.textContent = `Signed in as ${user.email}`;
     signoutBtn.style.display = 'inline-block';
     await Promise.all([
-      loadPriorities(), loadReading(), loadSpending(),
+      loadPriorities(), loadReading(),
       loadCareerTracker(), loadHobSnapshot(), loadPersonalNotes()
     ]);
     subscribeRealtime();
