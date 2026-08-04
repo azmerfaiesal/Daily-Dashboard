@@ -107,6 +107,13 @@
     background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 6px;
   }
   .task-item button.remove:hover { color: var(--danger); }
+  /* Reminders mirror rows */
+  .reminder-item { align-items: flex-start; }
+  .reminder-body { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .reminder-title { font-size: 14px; }
+  .reminder-pri { color: var(--danger); font-weight: 600; }
+  .reminder-meta { font-size: 11px; color: var(--muted); }
+
   .add-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .add-row input {
     flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
@@ -250,7 +257,7 @@
   <!-- Today's Priorities -->
   <div class="card">
     <h2><span class="dot dell"></span>Today's Priorities</h2>
-    <div class="sub">Across Dell, House of Bracelet, side hustle, personal. Synced live to your account — same data on every signed-in device.</div>
+    <div class="sub">Mirrored from your Mac's Reminders app, grouped by list &middot; synced daily at 7:07am &middot; read-only here, edit in Reminders</div>
 
     <div id="priorities"></div>
   </div>
@@ -373,105 +380,77 @@
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
   }
 
-  // ---- priorities (synced via the `priorities` table) ----
-  const categories = [
-    { key: 'dell', label: 'Dell / DB Engineering', dotClass: 'dell' },
-    { key: 'hob', label: 'House of Bracelet', dotClass: 'hob' },
-    { key: 'career', label: 'Side Hustle', dotClass: 'career' },
-    { key: 'personal', label: 'Personal', dotClass: 'personal' }
-  ];
-  const state = {}; // category key -> array of {id, text, done}
-  categories.forEach(c => state[c.key] = []);
-
+  // ---- Today's Priorities: read-only mirror of the macOS Reminders app ----
+  // Populated by the "sync-reminders-to-dashboard" scheduled task (daily 7:07am), which reads
+  // the Reminders app via computer-use and replaces the rows in the `reminders` table.
+  // Read-only by design: edits belong in Reminders itself, this is a view onto it.
+  let reminders = [];
   const prioritiesEl = document.getElementById('priorities');
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
 
   function renderPriorities() {
     prioritiesEl.innerHTML = '';
-    categories.forEach(cat => {
-      const group = document.createElement('div');
-      group.className = 'task-group';
+
+    if (!reminders.length) {
+      prioritiesEl.innerHTML = '<div class="sub">Nothing synced yet — the next sync runs at 7:07am, or your Reminders lists are all clear.</div>';
+      return;
+    }
+
+    // Group by list, preserving the Reminders app's own sidebar ordering.
+    const groups = [];
+    reminders.forEach(r => {
+      let g = groups.find(x => x.name === r.list_name);
+      if (!g) { g = { name: r.list_name, order: r.list_order, items: [] }; groups.push(g); }
+      g.items.push(r);
+    });
+    groups.sort((a, b) => a.order - b.order);
+
+    groups.forEach(group => {
+      const wrap = document.createElement('div');
+      wrap.className = 'task-group';
 
       const label = document.createElement('div');
       label.className = 'task-group-label';
-      label.textContent = cat.label;
-      group.appendChild(label);
+      label.textContent = group.name;
+      wrap.appendChild(label);
 
       const list = document.createElement('ul');
       list.className = 'task-list';
-      state[cat.key].forEach(task => {
+      group.items.sort((a, b) => a.item_order - b.item_order).forEach(item => {
         const li = document.createElement('li');
-        li.className = 'task-item' + (task.done ? ' done' : '');
+        li.className = 'task-item reminder-item';
+        const bits = [];
+        if (item.notes) bits.push(escapeHtml(item.notes));
+        if (item.due_text) bits.push(escapeHtml(item.due_text));
         li.innerHTML = `
-          <input type="checkbox" ${task.done ? 'checked' : ''} data-cat="${cat.key}" data-id="${task.id}" class="toggle">
-          <span>${task.text}</span>
-          <button class="remove" data-cat="${cat.key}" data-id="${task.id}">&times;</button>
+          <span class="reminder-body">
+            <span class="reminder-title">${item.priority ? `<span class="reminder-pri">${escapeHtml(item.priority)}</span> ` : ''}${escapeHtml(item.title)}</span>
+            ${bits.length ? `<span class="reminder-meta">${bits.join(' · ')}</span>` : ''}
+          </span>
         `;
         list.appendChild(li);
       });
-      group.appendChild(list);
+      wrap.appendChild(list);
 
-      const addRow = document.createElement('div');
-      addRow.className = 'add-row';
-      addRow.innerHTML = `
-        <input type="text" placeholder="Add a task..." data-cat="${cat.key}" class="add-input">
-        <button data-cat="${cat.key}" class="add-btn">Add</button>
-      `;
-      group.appendChild(addRow);
-
-      prioritiesEl.appendChild(group);
-    });
-
-    prioritiesEl.querySelectorAll('.toggle').forEach(el => {
-      el.addEventListener('change', async e => {
-        const { cat, id } = e.target.dataset;
-        const task = state[cat].find(t => t.id === id);
-        if (!task) return;
-        task.done = e.target.checked;
-        renderPriorities();
-        await sb.from('priorities').update({ done: task.done }).eq('id', id);
-      });
-    });
-    prioritiesEl.querySelectorAll('.remove').forEach(el => {
-      el.addEventListener('click', async e => {
-        const { cat, id } = e.target.dataset;
-        state[cat] = state[cat].filter(t => t.id !== id);
-        renderPriorities();
-        await sb.from('priorities').delete().eq('id', id);
-      });
-    });
-    prioritiesEl.querySelectorAll('.add-btn').forEach(el => {
-      el.addEventListener('click', async e => {
-        const cat = e.target.dataset.cat;
-        const input = prioritiesEl.querySelector(`.add-input[data-cat="${cat}"]`);
-        const text = input.value.trim();
-        if (text && currentUser) {
-          input.value = '';
-          const { data, error } = await sb.from('priorities')
-            .insert({ user_id: currentUser.id, category: cat, text, done: false })
-            .select().single();
-          if (!error) {
-            state[cat].push(data);
-            renderPriorities();
-          }
-        }
-      });
-    });
-    prioritiesEl.querySelectorAll('.add-input').forEach(el => {
-      el.addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          prioritiesEl.querySelector(`.add-btn[data-cat="${e.target.dataset.cat}"]`).click();
-        }
-      });
+      prioritiesEl.appendChild(wrap);
     });
   }
   renderPriorities();
 
   async function loadPriorities() {
-    categories.forEach(c => state[c.key] = []);
-    const { data, error } = await sb.from('priorities').select('*').order('created_at', { ascending: true });
-    if (!error && data) data.forEach(row => { if (state[row.category]) state[row.category].push(row); });
-    renderPriorities();
+    const { data, error } = await sb.from('reminders')
+      .select('*')
+      .order('list_order', { ascending: true })
+      .order('item_order', { ascending: true });
+    if (!error && data) {
+      reminders = data;
+      renderPriorities();
+    }
   }
 
   // ---- weekly Cyberjaya DBA jobs ticker ----
@@ -755,21 +734,10 @@
     if (!currentUser) return;
     const uid = currentUser.id;
 
-    const prioritiesCh = sb.channel('priorities-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'priorities', filter: `user_id=eq.${uid}` }, payload => {
-        if (payload.eventType === 'INSERT') {
-          const row = payload.new;
-          if (state[row.category] && !state[row.category].some(t => t.id === row.id)) state[row.category].push(row);
-        } else if (payload.eventType === 'UPDATE') {
-          const row = payload.new;
-          const arr = state[row.category] || [];
-          const idx = arr.findIndex(t => t.id === row.id);
-          if (idx > -1) arr[idx] = row;
-        } else if (payload.eventType === 'DELETE') {
-          const row = payload.old;
-          categories.forEach(c => { state[c.key] = state[c.key].filter(t => t.id !== row.id); });
-        }
-        renderPriorities();
+    // The sync task replaces reminders wholesale (delete + insert), so just reload on any change.
+    const prioritiesCh = sb.channel('reminders-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders', filter: `user_id=eq.${uid}` }, () => {
+        loadPriorities();
       }).subscribe();
 
     const spendingCh = sb.channel('spending-changes')
