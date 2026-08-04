@@ -257,7 +257,7 @@
   <!-- Today's Priorities -->
   <div class="card">
     <h2><span class="dot dell"></span>Today's Priorities</h2>
-    <div class="sub">Mirrored from your Mac's Reminders app, grouped by list &middot; synced daily at 7:07am &middot; read-only here, edit in Reminders</div>
+    <div class="sub">Mirrored from your Mac's Reminders app, grouped by list &middot; synced every 30 min, 8am&ndash;7pm &middot; read-only here, edit in Reminders</div>
 
     <div id="priorities"></div>
   </div>
@@ -397,7 +397,7 @@
     prioritiesEl.innerHTML = '';
 
     if (!reminders.length) {
-      prioritiesEl.innerHTML = '<div class="sub">Nothing synced yet — the next sync runs at 7:07am, or your Reminders lists are all clear.</div>';
+      prioritiesEl.innerHTML = '<div class="sub">Nothing synced yet — syncs run every 30 min between 8am and 7pm, or your Reminders lists are all clear.</div>';
       return;
     }
 
