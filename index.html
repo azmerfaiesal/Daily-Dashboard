@@ -239,19 +239,6 @@
     padding: 6px 10px; border-radius: 6px;
   }
   .link-row a:hover { background: var(--hover); }
-  .add-row input.pages { max-width: 70px; flex: none; }
-
-  /* Reading log */
-  .reading-item { padding: 8px 0; border-bottom: 1px solid var(--card-border); }
-  .reading-item:last-child { border-bottom: none; }
-  .reading-item-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin-bottom: 5px; }
-  .reading-item-top .pages-info { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; }
-  .reading-item-top input.current-page {
-    width: 50px; background: var(--surface); border: 1px solid var(--card-border); border-radius: 4px;
-    color: var(--text); font-size: 12px; padding: 3px 5px; text-align: center;
-  }
-  .reading-item button.remove { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 6px; }
-  .reading-item button.remove:hover { color: var(--danger); }
 
   footer { margin-top: 28px; color: var(--muted); font-size: 11px; text-align: center; }
 
@@ -336,17 +323,6 @@
       <div class="ticker-track" id="tech-news-track"></div>
     </div>
 
-    <label class="field-label">Braindump</label>
-    <textarea id="braindump" placeholder="What mattered today?"></textarea>
-
-    <label class="field-label">Reading Log</label>
-    <ul id="reading-list" style="list-style:none; margin:0; padding:0;"></ul>
-    <div class="add-row">
-      <input type="text" id="reading-title" placeholder="Book title">
-      <input type="number" id="reading-total" class="pages" placeholder="Total pg" min="1">
-      <input type="number" id="reading-current" class="pages" placeholder="At pg" min="0">
-      <button id="reading-add-btn">Add</button>
-    </div>
   </div>
 
 </div>
@@ -480,85 +456,6 @@
       loadTechNews();
     }).subscribe();
 
-  // ---- reading log (synced via the `reading_log` table) ----
-  const readingList = [];
-  const readingListEl = document.getElementById('reading-list');
-
-  function renderReading() {
-    readingListEl.innerHTML = '';
-    readingList.forEach(book => {
-      const pct = Math.min(100, Math.round((book.current_page / book.total_pages) * 100));
-      const li = document.createElement('li');
-      li.className = 'reading-item';
-      li.innerHTML = `
-        <div class="reading-item-top">
-          <span>${book.title}</span>
-          <span class="pages-info">
-            <input type="number" class="current-page" value="${book.current_page}" min="0" max="${book.total_pages}" data-id="${book.id}">
-            / ${book.total_pages} pg (${isNaN(pct) ? 0 : pct}%)
-            <button class="remove" data-id="${book.id}">&times;</button>
-          </span>
-        </div>
-        <div class="bar-track"><div class="bar-fill" style="width:${isNaN(pct) ? 0 : pct}%"></div></div>
-      `;
-      readingListEl.appendChild(li);
-    });
-    readingListEl.querySelectorAll('.current-page').forEach(el => {
-      el.addEventListener('change', async e => {
-        const id = e.target.dataset.id;
-        const book = readingList.find(b => b.id === id);
-        if (!book) return;
-        const val = parseInt(e.target.value, 10);
-        book.current_page = isNaN(val) ? 0 : Math.min(val, book.total_pages);
-        renderReading();
-        await sb.from('reading_log').update({ current_page: book.current_page, updated_at: new Date().toISOString() }).eq('id', id);
-      });
-    });
-    readingListEl.querySelectorAll('.remove').forEach(btn => {
-      btn.addEventListener('click', async e => {
-        const id = e.target.dataset.id;
-        readingList.splice(readingList.findIndex(b => b.id === id), 1);
-        renderReading();
-        await sb.from('reading_log').delete().eq('id', id);
-      });
-    });
-  }
-  renderReading();
-
-  const readingTitleEl = document.getElementById('reading-title');
-  const readingTotalEl = document.getElementById('reading-total');
-  const readingCurrentEl = document.getElementById('reading-current');
-  async function addReading() {
-    const title = readingTitleEl.value.trim();
-    const total = parseInt(readingTotalEl.value, 10);
-    const current = parseInt(readingCurrentEl.value, 10) || 0;
-    if (title && !isNaN(total) && total > 0 && currentUser) {
-      readingTitleEl.value = '';
-      readingTotalEl.value = '';
-      readingCurrentEl.value = '';
-      const { data, error } = await sb.from('reading_log')
-        .insert({ user_id: currentUser.id, title, total_pages: total, current_page: Math.min(current, total) })
-        .select().single();
-      if (!error) {
-        readingList.push(data);
-        renderReading();
-      }
-    }
-  }
-  document.getElementById('reading-add-btn').addEventListener('click', addReading);
-  [readingTitleEl, readingTotalEl, readingCurrentEl].forEach(el => {
-    el.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); addReading(); }
-    });
-  });
-
-  async function loadReading() {
-    readingList.length = 0;
-    const { data, error } = await sb.from('reading_log').select('*').order('created_at', { ascending: true });
-    if (!error && data) data.forEach(b => readingList.push(b));
-    renderReading();
-  }
-
   // ---- career tracker (single row per user, `career_tracker` table) ----
   const saveCareerTracker = debounce(async () => {
     if (!currentUser) return;
@@ -578,40 +475,10 @@
     document.getElementById('career-notes').value = data?.notes || '';
   }
 
-  // ---- Personal braindump (single row per user, `personal_notes` table) ----
-  const saveBraindump = debounce(async () => {
-    if (!currentUser) return;
-    await sb.from('personal_notes').upsert({
-      user_id: currentUser.id,
-      braindump: document.getElementById('braindump').value,
-      updated_at: new Date().toISOString()
-    });
-  }, 700);
-  document.getElementById('braindump').addEventListener('input', saveBraindump);
-
-  async function loadPersonalNotes() {
-    const { data } = await sb.from('personal_notes').select('*').maybeSingle();
-    document.getElementById('braindump').value = data?.braindump || '';
-  }
-
   // ---- realtime: reflect changes made on another device immediately ----
   function subscribeRealtime() {
     if (!currentUser) return;
     const uid = currentUser.id;
-
-    const readingCh = sb.channel('reading-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reading_log', filter: `user_id=eq.${uid}` }, payload => {
-        if (payload.eventType === 'INSERT') {
-          if (!readingList.some(b => b.id === payload.new.id)) readingList.push(payload.new);
-        } else if (payload.eventType === 'UPDATE') {
-          const idx = readingList.findIndex(b => b.id === payload.new.id);
-          if (idx > -1) readingList[idx] = payload.new;
-        } else if (payload.eventType === 'DELETE') {
-          const idx = readingList.findIndex(b => b.id === payload.old.id);
-          if (idx > -1) readingList.splice(idx, 1);
-        }
-        renderReading();
-      }).subscribe();
 
     const careerCh = sb.channel('career-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'career_tracker', filter: `user_id=eq.${uid}` }, payload => {
@@ -622,13 +489,7 @@
         }
       }).subscribe();
 
-    const notesCh = sb.channel('notes-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'personal_notes', filter: `user_id=eq.${uid}` }, payload => {
-        const row = payload.new;
-        if (row) document.getElementById('braindump').value = row.braindump || '';
-      }).subscribe();
-
-    realtimeChannels = [readingCh, careerCh, notesCh];
+    realtimeChannels = [careerCh];
 
     // ---- Clarity iframe theme sync ----
     // Clarity already implements the postMessage handshake: it posts { type: 'clarity:ready' }
@@ -666,8 +527,7 @@
     authStatusEl.textContent = `Signed in as ${user.email}`;
     signoutBtn.style.display = 'inline-block';
     await Promise.all([
-      loadReading(),
-      loadCareerTracker(), loadPersonalNotes()
+      loadCareerTracker()
     ]);
     subscribeRealtime();
   }
