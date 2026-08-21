@@ -1,12 +1,57 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>clarity</title>
-    <script type="module" crossorigin src="./assets/index-ZCBX5a4o.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-iYspwkAp.css">
+    <script>
+      // Theme sync with parent (Daily Dashboard) via postMessage
+      // Parent sends { type: 'theme', value: 'light'|'dark' }
+      // Also respects system preference as fallback
+      (function () {
+        var html = document.documentElement;
+        var current = html.getAttribute('data-theme') || 'dark';
+
+        function applyTheme(t) {
+          if (t === 'light' || t === 'dark') {
+            html.setAttribute('data-theme', t);
+            current = t;
+          }
+        }
+
+        // Listen for parent messages
+        window.addEventListener('message', function (e) {
+          if (!e.data || e.data.type !== 'theme') return;
+          applyTheme(e.data.value);
+        });
+
+        // Request initial theme from parent (if embedded)
+        if (window.parent !== window) {
+          window.parent.postMessage({ type: 'clarity:ready' }, '*');
+        }
+
+        // Fallback: respect system preference changes when not controlled by parent
+        var media = window.matchMedia('(prefers-color-scheme: dark)');
+        var listener = function (m) {
+          // Only auto-switch if we haven't received a parent theme yet
+          // (parent will send theme on load and on changes)
+          if (!window._clarityThemeFromParent) {
+            applyTheme(m.matches ? 'dark' : 'light');
+          }
+        };
+        media.addEventListener ? media.addEventListener('change', listener) : media.addListener(listener);
+
+        // Track if parent has sent theme
+        window.addEventListener('message', function (e) {
+          if (e.data && e.data.type === 'theme') {
+            window._clarityThemeFromParent = true;
+          }
+        });
+      })();
+    </script>
+    <script type="module" crossorigin src="./assets/index-BZt3VnK2.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-CJ8CHfCu.css">
   </head>
   <body>
     <div id="root"></div>
