@@ -119,12 +119,10 @@
   .dot.hob { background: var(--hob-amber); }
   .dot.career { background: var(--career-purple); }
   .dot.personal { background: var(--personal-green); }
+  .dot.clarity { background: #6366f1; }
   .card .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
 
   /* Priorities */
-  .task-group { margin-bottom: 14px; }
-  .task-group-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 6px; }
-  .task-list { list-style: none; margin: 0; padding: 0; }
   .task-item {
     display: flex;
     align-items: center;
@@ -140,12 +138,20 @@
     background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 6px;
   }
   .task-item button.remove:hover { color: var(--danger); }
-  /* Reminders mirror rows */
-  .reminder-item { align-items: flex-start; }
-  .reminder-body { display: flex; flex-direction: column; gap: 2px; flex: 1; }
-  .reminder-title { font-size: 14px; }
-  .reminder-pri { color: var(--danger); font-weight: 600; }
-  .reminder-meta { font-size: 11px; color: var(--muted); }
+  /* Clarity full-app embed */
+  .clarity-frame {
+    width: 100%;
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    background: var(--bg);
+    display: block;
+    min-height: 440px;
+    height: 56vh;
+    max-height: 720px;
+  }
+  @media (max-width: 480px) {
+    .clarity-frame { height: 46vh; min-height: 380px; }
+  }
 
   .add-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .add-row input {
@@ -285,11 +291,18 @@
 
 <div class="grid" id="dashboard-content" style="display:none;">
 
-  <!-- Today's Priorities -->
+  <!-- Clarity (full task manager, embedded live) -->
   <div class="card">
-    <h2><span class="dot dell"></span>Today's Priorities</h2>
-    <div class="sub">Mirrored from your Mac's Reminders app, grouped by list &middot; syncs every 30 min between 8am–7pm</div>
-    <div id="priorities"></div>
+    <h2><span class="dot clarity"></span>Clarity</h2>
+    <div class="sub">Your full Clarity task manager — same account, live sync. Tip: <b>N</b> to add, <b>&sol;</b> to search</div>
+    <iframe
+      id="clarity-frame"
+      class="clarity-frame"
+      src="https://azmerfaiesal.github.io/clarity/"
+      title="Clarity task manager"
+      loading="lazy"
+      allow="clipboard-write"
+    ></iframe>
   </div>
 
   <!-- Career Improvement Tracker -->
@@ -300,46 +313,14 @@
     <label class="field-label">Daily Learning Log — PostgreSQL &amp; Azure (AZ-104)</label>
     <textarea id="learning-log" placeholder="What did you learn today?"></textarea>
 
-    <label class="field-label">Weekly Cyberjaya DBA Jobs — Latest Run</label>
-    <div class="sub" style="margin-bottom:8px;">Scheduled Wednesdays 9:06am &middot; last run 2026-08-03 (ad-hoc) &middot; next scheduled 2026-08-05</div>
+    <label class="field-label">Weekly Cyberjaya DBA Jobs</label>
+    <div class="sub" style="margin-bottom:8px;">Live via the <code>dba_jobs</code> table &middot; falls back to the 2026-08-03 snapshot until a feed is wired</div>
     <div class="ticker">
       <div class="ticker-track" id="dba-ticker-track"></div>
     </div>
 
     <label class="field-label">Notes</label>
     <textarea id="career-notes" placeholder="e.g. which posting to follow up on, interview prep needed..."></textarea>
-  </div>
-
-  <!-- House of Bracelet Snapshot -->
-  <div class="card">
-    <h2><span class="dot hob"></span>House of Bracelet Snapshot</h2>
-    <div class="sub">Manual entry — no Shopee/Instagram connector wired up yet</div>
-
-    <div class="stat-grid">
-      <div class="stat-box">
-        <div class="stat-label">Orders today</div>
-        <input type="number" min="0" value="0" id="orders-today">
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Pending ships</div>
-        <input type="number" min="0" value="0" id="pending-ships">
-      </div>
-      <div class="stat-box">
-        <div class="stat-label">Shipped</div>
-        <input type="number" min="0" value="0" id="shipped">
-      </div>
-    </div>
-
-    <label class="field-label">Inventory / restock alerts</label>
-    <textarea id="hob-alerts" placeholder="e.g. low on gold thread, need clasps..."></textarea>
-
-    <label class="field-label">Today's focus</label>
-    <textarea id="hob-focus" placeholder="e.g. reply to Shopee messages, post new listing..."></textarea>
-
-    <div class="link-row">
-      <a href="https://shopee.com.my" target="_blank" rel="noopener">Shopee</a>
-      <a href="https://instagram.com/houseofbracelet" target="_blank" rel="noopener">@houseofbracelet</a>
-    </div>
   </div>
 
   <!-- Personal / Journaling -->
@@ -389,6 +370,14 @@
   ];
   document.getElementById('quote').textContent = quotes[new Date().getDate() % quotes.length];
 
+  // ---- theme: drive data-theme from system preference (so the embedded Clarity app can sync to it) ----
+  (function () {
+    const root = document.documentElement;
+    const applySystemTheme = () => root.setAttribute('data-theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    applySystemTheme();
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applySystemTheme);
+  })();
+
   // ---- Supabase client ----
   const SUPABASE_URL = 'https://pakfyyvdfwxglcjkatqz.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_sC0C_y4pbJOUEANyk7o8Tg_u5PZpzVs';
@@ -401,83 +390,9 @@
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
   }
 
-  // ---- Today's Priorities: read-only mirror of the macOS Reminders app ----
-  // Populated by the "sync-reminders-to-dashboard" scheduled task (daily 7:07am), which reads
-  // the Reminders app via computer-use and replaces the rows in the `reminders` table.
-  // Read-only by design: edits belong in Reminders itself, this is a view onto it.
-  let reminders = [];
-  const prioritiesEl = document.getElementById('priorities');
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => (
-      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-    ));
-  }
-
-  function renderPriorities() {
-    prioritiesEl.innerHTML = '';
-
-    if (!reminders.length) {
-      prioritiesEl.innerHTML = '<div class="sub">Nothing synced yet — syncs run every 30 min between 8am and 7pm, or your Reminders lists are all clear.</div>';
-      return;
-    }
-
-    // Group by list, preserving the Reminders app's own sidebar ordering.
-    const groups = [];
-    reminders.forEach(r => {
-      let g = groups.find(x => x.name === r.list_name);
-      if (!g) { g = { name: r.list_name, order: r.list_order, items: [] }; groups.push(g); }
-      g.items.push(r);
-    });
-    groups.sort((a, b) => a.order - b.order);
-
-    groups.forEach(group => {
-      const wrap = document.createElement('div');
-      wrap.className = 'task-group';
-
-      const label = document.createElement('div');
-      label.className = 'task-group-label';
-      label.textContent = group.name;
-      wrap.appendChild(label);
-
-      const list = document.createElement('ul');
-      list.className = 'task-list';
-      group.items.sort((a, b) => a.item_order - b.item_order).forEach(item => {
-        const li = document.createElement('li');
-        li.className = 'task-item reminder-item';
-        const bits = [];
-        if (item.notes) bits.push(escapeHtml(item.notes));
-        if (item.due_text) bits.push(escapeHtml(item.due_text));
-        li.innerHTML = `
-          <span class="reminder-body">
-            <span class="reminder-title">${item.priority ? `<span class="reminder-pri">${escapeHtml(item.priority)}</span> ` : ''}${escapeHtml(item.title)}</span>
-            ${bits.length ? `<span class="reminder-meta">${bits.join(' · ')}</span>` : ''}
-          </span>
-        `;
-        list.appendChild(li);
-      });
-      wrap.appendChild(list);
-
-      prioritiesEl.appendChild(wrap);
-    });
-  }
-
-  async function loadPriorities() {
-    const { data, error } = await sb.from('reminders')
-      .select('*')
-      .order('list_order', { ascending: true })
-      .order('item_order', { ascending: true });
-    if (!error && data) {
-      reminders = data;
-      renderPriorities();
-    }
-  }
-
-  // ---- weekly Cyberjaya DBA jobs ticker ----
-  // Sourced from the "weekly-cyberjaya-dba-jobs" scheduled task (runs Wednesdays 9:06am).
-  // As of 2026-08-03 the task also saves a persistent copy into career/dba-jobs/ in the vault,
-  // so this list can be refreshed from there after each run. Rows below are from the 2026-08-03 ad-hoc run.
-  const dbaJobs = [
+  // Live via the `dba_jobs` table (populated by a scheduled scraper). Until that feed exists,
+  // this falls back to the 2026-08-03 manual snapshot so the section is never empty.
+  const dbaJobsSnapshot = [
     { title: 'Lead Database Platform Engineer — Great Eastern', meta: 'Cyberjaya, On-site · Oracle/SQL Server/PostgreSQL/MySQL/DB2 · Lead/Principal · MYR 360,000–600,000/yr · Today' },
     { title: 'Lead, Database Administrator — Great Eastern', meta: 'Cyberjaya, On-site · Lead · MYR 180,000–240,000/yr · 7 days ago' },
     { title: 'Database Administrator — Great Eastern', meta: 'Cyberjaya, On-site · Senior · MYR 120,000–180,000/yr · 4 days ago' },
@@ -489,6 +404,7 @@
     { title: 'Database Administrator — Infinitium Group', meta: 'Ara Damansara, Hybrid · PostgreSQL, MSSQL, EDB · 7 days ago' },
     { title: 'Database (DBA) Engineer — CMA Solutions', meta: 'Subang Jaya · SQL Server, PostgreSQL, MySQL · RM 5,000–7,500/mo · 3 days ago' }
   ];
+  let dbaJobs = dbaJobsSnapshot.slice();
   const dbaTrackEl = document.getElementById('dba-ticker-track');
 
   function renderDbaJobs() {
@@ -498,15 +414,32 @@
         <div class="meta">${j.meta}</div>
       </div>
     `).join('');
-    if (dbaJobs.length < 4) {
-      dbaTrackEl.style.animation = 'none';
-      dbaTrackEl.innerHTML = itemsHtml;
-    } else {
-      dbaTrackEl.style.animation = '';
-      dbaTrackEl.innerHTML = itemsHtml + itemsHtml; // duplicated for seamless loop
-    }
+    dbaTrackEl.style.animation = dbaJobs.length >= 4 ? '' : 'none';
+    dbaTrackEl.innerHTML = dbaJobs.length
+      ? itemsHtml + (dbaJobs.length >= 4 ? itemsHtml : '')
+      : '<div class="ticker-item"><div class="title">No DBA jobs loaded yet</div><div class="meta">Waiting on a feed — showing the 2026-08-03 snapshot for now.</div></div>';
   }
   renderDbaJobs();
+
+  // Pull live rows from Supabase when a feed populates `dba_jobs`; otherwise keep the snapshot.
+  async function loadDbaJobs() {
+    const { data, error } = await sb.from('dba_jobs')
+      .select('title, company, location, work_mode, salary, posted_date')
+      .order('posted_date', { ascending: false })
+      .limit(10);
+    if (!error && data && data.length) {
+      // Normalize the table rows into the {title, meta} shape the ticker renders.
+      dbaJobs = data.map(j => ({
+        title: j.title,
+        meta: [j.company, j.location, j.work_mode, j.salary].filter(Boolean).join(' · ')
+      }));
+      renderDbaJobs();
+    }
+  }
+  loadDbaJobs();
+  sb.channel('dba-jobs-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'dba_jobs' }, () => loadDbaJobs())
+    .subscribe();
 
   // ---- Malaysia tech news ticker (live, via the `tech_news` table) ----
   // Refreshed daily by the "daily-malaysia-tech-news" scheduled task at 8:08am.
@@ -645,32 +578,6 @@
     document.getElementById('career-notes').value = data?.notes || '';
   }
 
-  // ---- House of Bracelet snapshot (single row per user, `hob_snapshot` table) ----
-  const saveHobSnapshot = debounce(async () => {
-    if (!currentUser) return;
-    await sb.from('hob_snapshot').upsert({
-      user_id: currentUser.id,
-      orders_today: parseInt(document.getElementById('orders-today').value, 10) || 0,
-      pending_ships: parseInt(document.getElementById('pending-ships').value, 10) || 0,
-      shipped: parseInt(document.getElementById('shipped').value, 10) || 0,
-      alerts: document.getElementById('hob-alerts').value,
-      focus: document.getElementById('hob-focus').value,
-      updated_at: new Date().toISOString()
-    });
-  }, 700);
-  ['orders-today', 'pending-ships', 'shipped', 'hob-alerts', 'hob-focus'].forEach(id => {
-    document.getElementById(id).addEventListener('input', saveHobSnapshot);
-  });
-
-  async function loadHobSnapshot() {
-    const { data } = await sb.from('hob_snapshot').select('*').maybeSingle();
-    document.getElementById('orders-today').value = data?.orders_today ?? 0;
-    document.getElementById('pending-ships').value = data?.pending_ships ?? 0;
-    document.getElementById('shipped').value = data?.shipped ?? 0;
-    document.getElementById('hob-alerts').value = data?.alerts || '';
-    document.getElementById('hob-focus').value = data?.focus || '';
-  }
-
   // ---- Personal braindump (single row per user, `personal_notes` table) ----
   const saveBraindump = debounce(async () => {
     if (!currentUser) return;
@@ -691,12 +598,6 @@
   function subscribeRealtime() {
     if (!currentUser) return;
     const uid = currentUser.id;
-
-    // The sync task replaces reminders wholesale (delete + insert), so just reload on any change.
-    const prioritiesCh = sb.channel('reminders-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reminders', filter: `user_id=eq.${uid}` }, () => {
-        loadPriorities();
-      }).subscribe();
 
     const readingCh = sb.channel('reading-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reading_log', filter: `user_id=eq.${uid}` }, payload => {
@@ -721,25 +622,29 @@
         }
       }).subscribe();
 
-    const hobCh = sb.channel('hob-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'hob_snapshot', filter: `user_id=eq.${uid}` }, payload => {
-        const row = payload.new;
-        if (row) {
-          document.getElementById('orders-today').value = row.orders_today;
-          document.getElementById('pending-ships').value = row.pending_ships;
-          document.getElementById('shipped').value = row.shipped;
-          document.getElementById('hob-alerts').value = row.alerts || '';
-          document.getElementById('hob-focus').value = row.focus || '';
-        }
-      }).subscribe();
-
     const notesCh = sb.channel('notes-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'personal_notes', filter: `user_id=eq.${uid}` }, payload => {
         const row = payload.new;
         if (row) document.getElementById('braindump').value = row.braindump || '';
       }).subscribe();
 
-    realtimeChannels = [prioritiesCh, readingCh, careerCh, hobCh, notesCh];
+    realtimeChannels = [readingCh, careerCh, notesCh];
+
+    // ---- Clarity iframe theme sync ----
+    // Clarity already implements the postMessage handshake: it posts { type: 'clarity:ready' }
+    // and listens for { type: 'theme', value }. Push our current theme to it, and again on changes.
+    const clarityFrame = document.getElementById('clarity-frame');
+    const pushClarityTheme = () => {
+      const t = document.documentElement.getAttribute('data-theme') || 'dark';
+      clarityFrame?.contentWindow?.postMessage({ type: 'theme', value: t }, 'https://azmerfaiesal.github.io');
+    };
+    window.addEventListener('message', e => {
+      if (e.data && e.data.type === 'clarity:ready') pushClarityTheme();
+    });
+    const clarityThemeObserver = new MutationObserver(pushClarityTheme);
+    clarityThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    if (clarityFrame) clarityFrame.addEventListener('load', pushClarityTheme);
+    pushClarityTheme();
   }
 
   function unsubscribeRealtime() {
@@ -761,8 +666,8 @@
     authStatusEl.textContent = `Signed in as ${user.email}`;
     signoutBtn.style.display = 'inline-block';
     await Promise.all([
-      loadPriorities(), loadReading(),
-      loadCareerTracker(), loadHobSnapshot(), loadPersonalNotes()
+      loadReading(),
+      loadCareerTracker(), loadPersonalNotes()
     ]);
     subscribeRealtime();
   }
