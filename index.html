@@ -242,6 +242,35 @@
 
   footer { margin-top: 28px; color: var(--muted); font-size: 11px; text-align: center; }
 
+  .dot.effie { background: #ec4899; }
+
+  /* Effie's Day — carousel */
+  .carousel { display: flex; align-items: stretch; gap: 10px; }
+  .carousel-arrow {
+    flex: none; width: 34px; border: 1px solid var(--card-border); background: var(--surface);
+    color: var(--text); border-radius: 8px; font-size: 20px; line-height: 1; cursor: pointer;
+    transition: background .15s ease;
+  }
+  .carousel-arrow:hover { background: var(--hover); }
+  .carousel-view { flex: 1; min-width: 0; }
+  .carousel-day { font-weight: 600; font-size: 14px; margin-bottom: 8px; color: var(--accent); }
+  .timetable { list-style: none; margin: 0; padding: 0; }
+  .timetable li {
+    display: flex; gap: 12px; align-items: baseline; padding: 6px 0;
+    border-bottom: 1px solid var(--card-border); font-size: 13px;
+  }
+  .timetable li:last-child { border-bottom: none; }
+  .timetable .t-time { flex: none; width: 96px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .timetable .t-act { color: var(--text); }
+  .timetable li.break .t-act, .timetable li.break .t-time { color: var(--muted); font-style: italic; }
+  .timetable li.now { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 6px; padding-left: 6px; padding-right: 6px; }
+  .carousel-dots { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+  .carousel-dots button {
+    width: 8px; height: 8px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
+    background: var(--card-border); transition: background .15s ease, transform .15s ease;
+  }
+  .carousel-dots button.active { background: #ec4899; transform: scale(1.25); }
+
   /* Mobile: prevent horizontal overflow from the 340px grid minimum and tight padding */
   @media (max-width: 480px) {
     body { padding: 16px; }
@@ -323,6 +352,22 @@
       <div class="ticker-track" id="tech-news-track"></div>
     </div>
 
+  </div>
+
+  <!-- Effie's Day -->
+  <div class="card">
+    <h2><span class="dot effie"></span>Effie's Day</h2>
+    <div class="sub">Year 2 weekly class timetable &middot; showing today</div>
+
+    <div class="carousel">
+      <button class="carousel-arrow" id="effie-prev" aria-label="Previous day">&#8249;</button>
+      <div class="carousel-view">
+        <div class="carousel-day" id="effie-day-label"></div>
+        <ul class="timetable" id="effie-timetable"></ul>
+      </div>
+      <button class="carousel-arrow" id="effie-next" aria-label="Next day">&#8250;</button>
+    </div>
+    <div class="carousel-dots" id="effie-dots"></div>
   </div>
 
 </div>
@@ -577,6 +622,90 @@
       onSignedOut();
     }
   });
+
+  // ---- Effie's Day: weekly timetable carousel (opens to today) ----
+  const EFFIE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const EFFIE_TIMETABLE = {
+    Monday: [
+      ['08:10–08:20', 'Registration'], ['08:20–09:10', 'Assembly'],
+      ['09:10–09:35', 'Phonics'], ['09:35–10:25', 'Maths'],
+      ['10:25–10:50', 'Snack / Break'], ['10:50–11:40', 'PE'],
+      ['11:40–12:30', 'Mandarin'], ['12:30–13:20', 'Lunch / Break'],
+      ['13:20–14:10', 'Spelling'], ['14:10–15:00', 'Library'],
+      ['15:00–15:25', 'IC']
+    ],
+    Tuesday: [
+      ['08:10–08:20', 'Registration'], ['08:20–09:35', 'Phonics'],
+      ['09:35–10:25', 'Maths'], ['10:25–10:50', 'Snack / Break'],
+      ['10:50–11:40', 'English'], ['11:40–12:30', 'DT'],
+      ['12:30–13:20', 'Lunch / Break'], ['13:20–14:10', 'Spanish'],
+      ['14:10–15:00', 'Science'], ['15:00–15:25', 'IC']
+    ],
+    Wednesday: [
+      ['08:10–08:20', 'Registration'], ['08:20–09:10', 'Reading'],
+      ['09:10–09:35', 'Phonics'], ['09:35–10:25', 'Music'],
+      ['10:25–10:50', 'Snack / Break'], ['10:50–11:40', 'English'],
+      ['11:40–12:30', 'Maths'], ['12:30–13:20', 'Lunch / Break'],
+      ['13:20–14:10', 'Computing'], ['14:10–15:00', 'IC'],
+      ['15:00–15:25', 'Guided Reading']
+    ],
+    Thursday: [
+      ['08:10–08:20', 'Registration'], ['08:20–09:35', 'Phonics'],
+      ['09:35–10:25', 'PE'], ['10:25–10:50', 'Snack / Break'],
+      ['10:50–11:40', 'Maths'], ['11:40–12:30', 'PSHE + Year 2 Singing'],
+      ['12:30–13:20', 'Lunch / Break'], ['13:20–14:10', 'Mandarin'],
+      ['14:10–15:00', 'English'], ['15:00–15:25', 'PSHE']
+    ],
+    Friday: [
+      ['08:10–08:20', 'Registration'], ['08:20–09:35', 'Assembly'],
+      ['09:35–10:00', 'Phonics'], ['10:00–10:25', 'Mini Maths'],
+      ['10:25–10:50', 'Snack / Break'], ['10:50–11:40', 'English'],
+      ['11:40–12:30', 'Bahasa'], ['12:30–13:20', 'Lunch / Break'],
+      ['13:20–14:10', 'Science'], ['14:10–15:00', 'Art'],
+      ['15:00–15:25', 'Golden Time']
+    ]
+  };
+  const effieDayLabel = document.getElementById('effie-day-label');
+  const effieTimetable = document.getElementById('effie-timetable');
+  const effieDots = document.getElementById('effie-dots');
+  let effieIdx = (new Date().getDay() + 6) % 7; // Sun=0..Sat=6 -> Mon=0..Sun=6
+  effieIdx = Math.min(effieIdx, 4);
+
+  function effieNowMins() {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  }
+  function effieInSlot(slot) {
+    const [a, b] = slot.split('–');
+    const toMin = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+    return effieNowMins() >= toMin(a) && effieNowMins() <= toMin(b);
+  }
+  function renderEffie() {
+    const day = EFFIE_DAYS[effieIdx];
+    effieDayLabel.textContent = day;
+    effieTimetable.innerHTML = '';
+    EFFIE_TIMETABLE[day].forEach(([time, act]) => {
+      const li = document.createElement('li');
+      if (/break/i.test(act)) li.className = 'break';
+      else if (effieInSlot(time)) li.className = 'now';
+      li.innerHTML = `<span class="t-time">${time}</span><span class="t-act">${act}</span>`;
+      effieTimetable.appendChild(li);
+    });
+    [...effieDots.children].forEach((d, i) => d.classList.toggle('active', i === effieIdx));
+  }
+  EFFIE_DAYS.forEach((d, i) => {
+    const b = document.createElement('button');
+    b.setAttribute('aria-label', d);
+    b.addEventListener('click', () => { effieIdx = i; renderEffie(); });
+    effieDots.appendChild(b);
+  });
+  document.getElementById('effie-prev').addEventListener('click', () => {
+    effieIdx = (effieIdx + 4) % 5; renderEffie();
+  });
+  document.getElementById('effie-next').addEventListener('click', () => {
+    effieIdx = (effieIdx + 1) % 5; renderEffie();
+  });
+  renderEffie();
 
 </script>
 
