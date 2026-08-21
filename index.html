@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <title>Daily Dashboard — Azmer</title>
@@ -40,6 +40,39 @@
       --danger: #d14343;
       --hover: #e2e5ea;
     }
+  }
+
+  /* Explicit theme override via data-theme attribute (for iframe sync) */
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --card-border: #e2e5ea;
+    --surface: #f0f1f4;
+    --text: #1a1d23;
+    --muted: #6b7280;
+    --dell-blue: #2f7bd6;
+    --hob-amber: #c9822a;
+    --career-purple: #8a4fd1;
+    --personal-green: #2f9e64;
+    --danger: #d14343;
+    --hover: #e2e5ea;
+  }
+
+  [data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0f1115;
+    --card: #171a21;
+    --card-border: #262b35;
+    --surface: #0f1115;
+    --text: #e8e9ec;
+    --muted: #8b909c;
+    --dell-blue: #4a9eff;
+    --hob-amber: #e0a458;
+    --career-purple: #a479e0;
+    --personal-green: #5ec98d;
+    --danger: #e06060;
+    --hover: #313745;
   }
   * { box-sizing: border-box; }
   body {
@@ -733,6 +766,42 @@
       onSignedOut();
     }
   });
+
+  // ---- Theme sync to Clarity iframe ----
+  // The dashboard controls the theme (via data-theme on <html>).
+  // Send the current theme to the Clarity iframe on load and on changes.
+  function sendThemeToClarity(theme) {
+    const clarityFrame = document.querySelector('.clarity-frame-wrap iframe');
+    if (clarityFrame?.contentWindow) {
+      clarityFrame.contentWindow.postMessage({ type: 'theme', value: theme }, '*');
+    }
+  }
+
+  // Send theme when Clarity signals it's ready
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'clarity:ready') {
+      const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+      sendThemeToClarity(theme);
+    }
+  });
+
+  // Send theme when it changes (via media query or explicit toggle)
+  const themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  const handleThemeChange = () => {
+    const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+    sendThemeToClarity(theme);
+  };
+  // Initial send after iframe loads
+  const clarityFrame = document.querySelector('.clarity-frame-wrap iframe');
+  if (clarityFrame) {
+    clarityFrame.addEventListener('load', () => {
+      const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+      sendThemeToClarity(theme);
+    });
+  }
+  // Also listen for system theme changes
+  themeMediaQuery.addEventListener('change', handleThemeChange);
+
 </script>
 
 </body>
