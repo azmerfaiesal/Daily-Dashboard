@@ -364,6 +364,8 @@
   #card-career label.field-label { margin: 12px 0 6px; }
   /* Roomier now that Notes is gone — about five postings visible at a time. */
   #card-career .ticker { height: 248px; }
+  /* Matched to the jobs ticker so the two row-mates stay balanced. */
+  #card-personal .ticker { height: 248px; }
 
   /* ── Tickers ───────────────────────────────────────────────────── */
   /* Duration is set per-ticker in JS from the item count, so a 4-item and a 14-item
@@ -658,7 +660,7 @@
   </div>
 
   <!-- Personal / Journaling -->
-  <div class="card">
+  <div class="card" id="card-personal">
     <h2><span class="dot personal"></span>Personal</h2>
     <div class="sub">Family, reading, coffee, football — the non-work layer</div>
 
@@ -1487,13 +1489,24 @@
     document.getElementById('weather').hidden = false;
     scheduleRelayout();
   }
+  // With no forecast we still know which clock hour each slot stands for, so label it
+  // that way rather than "+2H" — the strip reads identically online and offline.
+  // The hour is taken in Asia/Kuala_Lumpur, so it is correct whatever zone the browser
+  // is set to; MET's own slots are hour-aligned, hence the ":00".
+  function offlineLabel(k) {
+    if (k === 'now') return 'NOW';
+    const iso = new Date(Date.now() + Number(k.slice(1)) * 3600000).toISOString();
+    return String(klHour(iso)).padStart(2, '0') + ':00';
+  }
+
   function showOffline() {
     W_KEYS.forEach(k => {
       document.getElementById('w-' + k + '-icon').innerHTML = offlineIcon();
       document.getElementById('w-' + k + '-temp').textContent = '';
       document.getElementById('w-' + k + '-precip').textContent = '';
-      document.getElementById('w-' + k + '-label').textContent = k === 'now' ? 'NOW' : '+' + k.slice(1) + 'H';
-      document.getElementById('w-' + k).setAttribute('aria-label', 'Weather unavailable');
+      document.getElementById('w-' + k + '-label').textContent = offlineLabel(k);
+      document.getElementById('w-' + k).setAttribute('aria-label',
+        k === 'now' ? 'Current weather unavailable' : 'Forecast for ' + offlineLabel(k) + ' unavailable');
     });
     document.getElementById('weather').hidden = false;
     scheduleRelayout();
