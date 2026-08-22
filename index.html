@@ -585,16 +585,27 @@
     // Clarity already implements the postMessage handshake: it posts { type: 'clarity:ready' }
     // and listens for { type: 'theme', value }. Push our current theme to it, and again on changes.
     const clarityFrame = document.getElementById('clarity-frame');
+    // The Clarity app renders its own sign-out button(s); the dashboard already
+    // has a Sign out in #auth-bar, so hide Clarity's in-iframe chrome to avoid duplication.
+    const hideClaritySignout = () => {
+      try {
+        const doc = clarityFrame?.contentDocument;
+        if (!doc) return;
+        doc.querySelectorAll('button').forEach(b => {
+          if (b.textContent.trim() === 'Sign out') b.style.display = 'none';
+        });
+      } catch (e) { /* cross-origin would throw; same-origin here so safe */ }
+    };
     const pushClarityTheme = () => {
       const t = document.documentElement.getAttribute('data-theme') || 'dark';
       clarityFrame?.contentWindow?.postMessage({ type: 'theme', value: t }, 'https://azmerfaiesal.github.io');
     };
     window.addEventListener('message', e => {
-      if (e.data && e.data.type === 'clarity:ready') pushClarityTheme();
+      if (e.data && e.data.type === 'clarity:ready') { pushClarityTheme(); hideClaritySignout(); }
     });
     const clarityThemeObserver = new MutationObserver(pushClarityTheme);
     clarityThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    if (clarityFrame) clarityFrame.addEventListener('load', () => { pushClarityTheme(); compressRowsToShortest(); });
+    if (clarityFrame) clarityFrame.addEventListener('load', () => { pushClarityTheme(); compressRowsToShortest(); hideClaritySignout(); });
     pushClarityTheme();
   }
 
