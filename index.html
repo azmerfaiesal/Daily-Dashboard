@@ -320,6 +320,14 @@
         <span class="w-icon" id="w-h4-icon"></span>
         <span class="w-label" id="w-h4-label"></span>
       </div>
+      <div class="w-slot" id="w-h6">
+        <span class="w-icon" id="w-h6-icon"></span>
+        <span class="w-label" id="w-h6-label"></span>
+      </div>
+      <div class="w-slot" id="w-h8">
+        <span class="w-icon" id="w-h8-icon"></span>
+        <span class="w-label" id="w-h8-label"></span>
+      </div>
     </div>
     <div class="date" id="today"></div>
   </div>
@@ -778,7 +786,7 @@
   // Asia/Kuala_Lumpur with toLocaleString (handles DST correctly).
   const WEATHER = {
     lat: 2.9271, lon: 101.6386, tz: 'Asia/Kuala_Lumpur', cacheKey: 'weather_v1',
-    refreshMs: 45 * 60 * 1000, endpoints: { now: 'w-now', h2: 'w-h2', h4: 'w-h4' }
+    refreshMs: 45 * 60 * 1000, endpoints: { now: 'w-now', h2: 'w-h2', h4: 'w-h4', h6: 'w-h6', h8: 'w-h8' }
   };
 
   // yr.no symbol_code -> { name (a11y), svg (Lucide-style, monochrome) }
@@ -839,9 +847,9 @@
   }
 
   function renderWeather(slots) {
-    const labels = { now: 'Current weather', h2: 'Weather in 2 hours', h4: 'Weather in 4 hours' };
-    const labelText = { now: 'NOW', h2: fmtTime(slots.h2.time), h4: fmtTime(slots.h4.time) };
-    ['now', 'h2', 'h4'].forEach(k => {
+    const labels = { now: 'Current weather', h2: 'Weather in 2 hours', h4: 'Weather in 4 hours', h6: 'Weather in 6 hours', h8: 'Weather in 8 hours' };
+    const labelText = { now: 'NOW', h2: fmtTime(slots.h2.time), h4: fmtTime(slots.h4.time), h6: fmtTime(slots.h6.time), h8: fmtTime(slots.h8.time) };
+    ['now', 'h2', 'h4', 'h6', 'h8'].forEach(k => {
       const el = document.getElementById('w-' + k);
       const iconEl = document.getElementById('w-' + k + '-icon');
       const labelEl = document.getElementById('w-' + k + '-label');
@@ -853,9 +861,9 @@
     document.getElementById('weather').hidden = false;
   }
   function showOffline() {
-    ['now', 'h2', 'h4'].forEach(k => {
+    ['now', 'h2', 'h4', 'h6', 'h8'].forEach(k => {
       document.getElementById('w-' + k + '-icon').innerHTML = offlineIcon();
-      document.getElementById('w-' + k + '-label').textContent = k === 'now' ? 'NOW' : (k === 'h2' ? '+2H' : '+4H');
+      document.getElementById('w-' + k + '-label').textContent = k === 'now' ? 'NOW' : (k === 'h2' ? '+2H' : k === 'h4' ? '+4H' : k === 'h6' ? '+6H' : '+8H');
       document.getElementById('w-' + k).setAttribute('aria-label', 'Weather unavailable');
     });
     document.getElementById('weather').hidden = false;
@@ -890,10 +898,14 @@
       const iNow = 0;
       const i2 = nearestSlot(series, (curHour + 2) % 24);
       const i4 = nearestSlot(series, (curHour + 4) % 24);
+      const i6 = nearestSlot(series, (curHour + 6) % 24);
+      const i8 = nearestSlot(series, (curHour + 8) % 24);
       const slots = {
         now: { code: series[iNow].code, time: series[iNow].iso },
         h2:  { code: series[i2].code, time: series[i2].iso },
-        h4:  { code: series[i4].code, time: series[i4].iso }
+        h4:  { code: series[i4].code, time: series[i4].iso },
+        h6:  { code: series[i6].code, time: series[i6].iso },
+        h8:  { code: series[i8].code, time: series[i8].iso }
       };
       try { localStorage.setItem(WEATHER.cacheKey, JSON.stringify({ slots, t: Date.now() })); } catch (e) {}
       renderWeather(slots);
