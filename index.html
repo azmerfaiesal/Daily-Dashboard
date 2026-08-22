@@ -296,7 +296,7 @@
   /* Weekly School Menu — horizontally scrollable table; today's column highlighted */
   .menu-sub { margin-top: 14px; }
   .menu-scroll { overflow-x: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; }
-  .menu-table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 520px; }
+  .menu-table { width: 100%; border-collapse: collapse; font-size: 11px; }
   .menu-table th, .menu-table td {
     border: 1px solid var(--card-border); padding: 6px 8px; vertical-align: top; text-align: left;
   }
@@ -305,7 +305,7 @@
     text-transform: uppercase; background: var(--surface); white-space: nowrap;
   }
   .menu-table tbody th {
-    color: var(--muted); font-weight: 600; white-space: nowrap; width: 64px; background: var(--surface);
+    color: var(--muted); font-weight: 600; white-space: normal; width: 116px; background: var(--surface);
   }
   .menu-table td { color: var(--text); line-height: 1.45; }
   .menu-table td .dish { display: block; }
@@ -808,6 +808,7 @@
     effieTrack.appendChild(buildEffieRows(day, highlight));
     effieTrack.appendChild(buildEffieRows(day, highlight));
     [...effieTabsEl.children].forEach((t, i) => t.classList.toggle('active', i === effieIdx));
+    renderEffieMenu(); // menu follows the active day tab
   }
   EFFIE_DAYS.forEach((d, i) => {
     const b = document.createElement('button');
@@ -869,24 +870,19 @@
   const effieMenuCats = ['snack', 'vegetarian', 'western', 'asian', 'dessert'];
 
   function renderEffieMenu() {
-    const today = EFFIE_DAYS[effieTodayIdx];
-    let html = '<thead><tr><th>Menu</th>';
-    EFFIE_DAYS.forEach(d => { html += `<th class="${d === today ? 'today' : ''}">${d.slice(0, 3)}</th>`; });
-    html += '</tr></thead><tbody>';
+    // Follows the active day tab: shows only that day's menu.
+    const day = EFFIE_DAYS[effieIdx];
+    const isToday = effieIdx === effieTodayIdx;
+    let html = `<thead><tr><th>Menu</th><th class="${isToday ? 'today' : ''}">${day}</th></tr></thead><tbody>`;
     effieMenuCats.forEach(cat => {
-      html += `<tr><th>${EFFIE_MENU[cat].label}</th>`;
-      EFFIE_DAYS.forEach(d => {
-        const isToday = d === today;
-        const dishes = EFFIE_MENU[cat].days[d].map(x => `<span class="dish">${x}</span>`).join('');
-        const cls = (cat === 'snack' ? 'snack' : '') + (isToday ? ' today' : '');
-        html += `<td class="${cls.trim()}">${dishes}</td>`;
-      });
-      html += '</tr>';
+      const dishes = EFFIE_MENU[cat].days[day].map(x => `<span class="dish">${x}</span>`).join('');
+      const cls = (cat === 'snack' ? 'snack' : '') + (isToday ? ' today' : '');
+      html += `<tr><th>${EFFIE_MENU[cat].label}</th><td class="${cls.trim()}">${dishes}</td></tr>`;
     });
     html += '</tbody>';
     effieMenuEl.innerHTML = html;
   }
-  renderEffieMenu();
+
   // ---- Minimal monochrome weather strip (MET Norway, no API key) ----
   // Cyberjaya coordinates. MET returns UTC timestamps; we convert to
   // Asia/Kuala_Lumpur with toLocaleString (handles DST correctly).
