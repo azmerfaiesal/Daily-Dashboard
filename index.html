@@ -3,162 +3,309 @@
 <head>
 <meta charset="UTF-8">
 <title>Daily Dashboard — Azmer</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="Azmer's daily dashboard — tasks, career tracking, Malaysia tech news, Cyberjaya DBA jobs, weather and Effie's school day, in one place.">
+<meta name="color-scheme" content="dark light">
+<!-- Single tag, driven by JS so an explicit theme override repaints the mobile browser chrome too. -->
+<meta name="theme-color" id="theme-color-meta" content="#06070b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dashboard">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
-  /* Default: dark. Overridden below for users whose OS reports a light preference,
-     so the dashboard follows system appearance rather than forcing one theme. */
+  /* ══════════════════════════════════════════════════════════════════
+     Daily Dashboard — minimalist / futuristic
+     One accent (cyan) carries every "signal" meaning. Structure is
+     hairlines and negative space rather than boxes. Micro-typography is
+     monospace and letterspaced; content type is geometric sans.
+     Dark is the primary design; light is the same system inverted.
+     ══════════════════════════════════════════════════════════════════ */
+
   :root {
     color-scheme: dark;
-    --bg: #0f1115;
-    --card: #171a21;
-    --card-border: #262b35;
-    --surface: #0f1115;
-    --text: #e8e9ec;
-    --muted: #8b909c;
-    --dell-blue: #4a9eff;
-    --hob-amber: #e0a458;
-    --career-purple: #a479e0;
-    --personal-green: #5ec98d;
-    --danger: #e06060;
-    --hover: #313745;
+
+    /* canvas */
+    --bg: #06070b;
+    --surface: #0d1017;              /* solid: ticker edge-fades gradient from this */
+    --card: rgba(255, 255, 255, 0.028);
+    --card-border: rgba(255, 255, 255, 0.078);
+    --hairline: rgba(255, 255, 255, 0.055);
+    --hover: rgba(255, 255, 255, 0.07);
+
+    /* ink */
+    --text: #e8ecf4;
+    --muted: #79839a;
+    --faint: #4b5364;
+
+    /* signal */
+    --accent: #4ee3ea;
+    --accent-dim: rgba(78, 227, 234, 0.14);
+    --career-purple: #8b84ff;
+    --personal-green: #46e3a8;
+    --effie-pink: #ff6fae;
+    --clarity-indigo: #7b8cff;
+    --hob-amber: #ffb457;
+    --dell-blue: #4ea8ff;
+    --danger: #ff5f70;
+
+    --glow: 0 0 0 1px rgba(78, 227, 234, 0.28), 0 0 22px -8px rgba(78, 227, 234, 0.55);
+
+    --font-sans: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    --radius: 14px;
+    --radius-sm: 8px;
   }
 
+  /* Pre-JS fallback only — the theme script always writes data-theme explicitly. */
   @media (prefers-color-scheme: light) {
     :root {
       color-scheme: light;
-      --bg: #f5f6f8;
-      --card: #ffffff;
-      --card-border: #e2e5ea;
-      --surface: #f0f1f4;
-      --text: #1a1d23;
-      --muted: #6b7280;
-      --dell-blue: #2f7bd6;
-      --hob-amber: #c9822a;
-      --career-purple: #8a4fd1;
-      --personal-green: #2f9e64;
-      --danger: #d14343;
-      --hover: #e2e5ea;
+      --bg: #f2f4f8;
+      --surface: #f7f8fb;
+      --card: rgba(255, 255, 255, 0.72);
+      --card-border: rgba(10, 14, 25, 0.10);
+      --hairline: rgba(10, 14, 25, 0.075);
+      --hover: rgba(10, 14, 25, 0.05);
+      --text: #0c1017;
+      --muted: #5c6678;
+      --faint: #949daf;
+      --accent: #0a9fae;
+      --accent-dim: rgba(10, 159, 174, 0.13);
+      --career-purple: #6355ef;
+      --personal-green: #0f9c6e;
+      --effie-pink: #dc3f7c;
+      --clarity-indigo: #4f61ee;
+      --hob-amber: #b8730c;
+      --dell-blue: #1a79d1;
+      --danger: #d3384a;
+      --glow: 0 0 0 1px rgba(10, 159, 174, 0.25), 0 0 18px -8px rgba(10, 159, 174, 0.5);
     }
   }
 
-  /* Explicit theme override via data-theme attribute (for iframe sync) */
   [data-theme="light"] {
     color-scheme: light;
-    --bg: #f5f6f8;
-    --card: #ffffff;
-    --card-border: #e2e5ea;
-    --surface: #f0f1f4;
-    --text: #1a1d23;
-    --muted: #6b7280;
-    --dell-blue: #2f7bd6;
-    --hob-amber: #c9822a;
-    --career-purple: #8a4fd1;
-    --personal-green: #2f9e64;
-    --danger: #d14343;
-    --hover: #e2e5ea;
+    --bg: #f2f4f8;
+    --surface: #f7f8fb;
+    --card: rgba(255, 255, 255, 0.72);
+    --card-border: rgba(10, 14, 25, 0.10);
+    --hairline: rgba(10, 14, 25, 0.075);
+    --hover: rgba(10, 14, 25, 0.05);
+    --text: #0c1017;
+    --muted: #5c6678;
+    --faint: #949daf;
+    --accent: #0a9fae;
+    --accent-dim: rgba(10, 159, 174, 0.13);
+    --career-purple: #6355ef;
+    --personal-green: #0f9c6e;
+    --effie-pink: #dc3f7c;
+    --clarity-indigo: #4f61ee;
+    --hob-amber: #b8730c;
+    --dell-blue: #1a79d1;
+    --danger: #d3384a;
+    --glow: 0 0 0 1px rgba(10, 159, 174, 0.25), 0 0 18px -8px rgba(10, 159, 174, 0.5);
   }
 
   [data-theme="dark"] {
     color-scheme: dark;
-    --bg: #0f1115;
-    --card: #171a21;
-    --card-border: #262b35;
-    --surface: #0f1115;
-    --text: #e8e9ec;
-    --muted: #8b909c;
-    --dell-blue: #4a9eff;
-    --hob-amber: #e0a458;
-    --career-purple: #a479e0;
-    --personal-green: #5ec98d;
-    --danger: #e06060;
-    --hover: #313745;
+    --bg: #06070b;
+    --surface: #0d1017;
+    --card: rgba(255, 255, 255, 0.028);
+    --card-border: rgba(255, 255, 255, 0.078);
+    --hairline: rgba(255, 255, 255, 0.055);
+    --hover: rgba(255, 255, 255, 0.07);
+    --text: #e8ecf4;
+    --muted: #79839a;
+    --faint: #4b5364;
+    --accent: #4ee3ea;
+    --accent-dim: rgba(78, 227, 234, 0.14);
+    --career-purple: #8b84ff;
+    --personal-green: #46e3a8;
+    --effie-pink: #ff6fae;
+    --clarity-indigo: #7b8cff;
+    --hob-amber: #ffb457;
+    --dell-blue: #4ea8ff;
+    --danger: #ff5f70;
+    --glow: 0 0 0 1px rgba(78, 227, 234, 0.28), 0 0 22px -8px rgba(78, 227, 234, 0.55);
   }
+
   * { box-sizing: border-box; }
+  /* display:flex/grid on a component beats the UA's [hidden] rule, so JS toggling
+     `hidden` (weather strip, Effie's now/next banner) would otherwise show an empty box. */
+  [hidden] { display: none !important; }
+
+  html { scrollbar-width: thin; scrollbar-color: var(--card-border) transparent; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--card-border); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--hover); }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::selection { background: var(--accent-dim); color: var(--text); }
+
   body {
     margin: 0;
-    padding: 32px;
-    background: var(--bg);
+    padding: 36px 32px 32px;
+    min-height: 100vh;
+    background-color: var(--bg);
+    /* Two faint light sources instead of a flat fill — depth without ornament. */
+    background-image:
+      radial-gradient(900px 620px at 10% -12%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 62%),
+      radial-gradient(760px 520px at 94% -4%, color-mix(in srgb, var(--career-purple) 9%, transparent), transparent 58%);
+    background-attachment: fixed;
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    line-height: 1.5;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+
+  /* Fine measurement grid, masked to fade out below the fold. Sits behind everything. */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background-image:
+      linear-gradient(var(--hairline) 1px, transparent 1px),
+      linear-gradient(90deg, var(--hairline) 1px, transparent 1px);
+    background-size: 64px 64px;
+    -webkit-mask-image: radial-gradient(ellipse 85% 55% at 50% 0%, #000 15%, transparent 78%);
+    mask-image: radial-gradient(ellipse 85% 55% at 50% 0%, #000 15%, transparent 78%);
+    opacity: 0.6;
+  }
+
+  /* ── Header ────────────────────────────────────────────────────── */
   header {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: flex-end;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 28px;
-    border-bottom: 1px solid var(--card-border);
-    padding-bottom: 20px;
+    gap: 16px;
+    margin-bottom: 30px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--hairline);
   }
-  header h1 { margin: 0; font-size: 22px; font-weight: 600; }
-  header .date { color: var(--muted); font-size: 14px; }
-  .header-right { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
-  /* Minimal monochrome weather strip */
-  .weather { display: flex; align-items: flex-end; gap: 18px; }
-  .w-slot { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 34px; }
-  .w-icon { display: block; line-height: 0; color: var(--text); }
-  .w-icon svg { width: 22px; height: 22px; display: block; stroke: currentColor; stroke-width: 1.75;
-    fill: none; stroke-linecap: round; stroke-linejoin: round; }
-  .w-label { font-size: 9px; letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase;
-    font-variant-numeric: tabular-nums; }
-  @media (max-width: 480px) {
-    .header-right { gap: 12px; }
-    .weather { gap: 14px; }
+  header h1 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 500;
+    letter-spacing: -0.022em;
+    display: flex;
+    align-items: center;
+    gap: 11px;
   }
+  /* The single accent mark that sets the palette for the whole page. */
+  header h1::before {
+    content: '';
+    width: 7px; height: 7px; border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    flex: none;
+  }
+  .header-right { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  header .date {
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .clock {
+    font-family: var(--font-mono);
+    font-size: 13px; font-weight: 500; letter-spacing: 0.02em;
+    color: var(--text); font-variant-numeric: tabular-nums;
+  }
+  .icon-btn {
+    background: transparent; border: 1px solid var(--card-border); border-radius: var(--radius-sm);
+    color: var(--muted); width: 30px; height: 30px; padding: 0; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
+  }
+  .icon-btn:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: var(--accent-dim); }
+  .icon-btn:focus-visible { outline: none; box-shadow: var(--glow); }
+  .icon-btn svg {
+    width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.7; fill: none;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+
+  /* ── Weather strip ─────────────────────────────────────────────── */
+  .weather { display: flex; align-items: flex-end; gap: 20px; }
+  .w-slot { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 38px; }
+  .w-icon { display: block; line-height: 0; color: var(--muted); }
+  #w-now .w-icon { color: var(--text); }
+  .w-icon svg {
+    width: 20px; height: 20px; display: block; stroke: currentColor; stroke-width: 1.5;
+    fill: none; stroke-linecap: round; stroke-linejoin: round;
+  }
+  /* Temperature is the primary number; the time label sits under it, quieter. */
+  .w-temp {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500; line-height: 1;
+    color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  #w-now .w-temp { color: var(--text); }
+  .w-label {
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; line-height: 1;
+    color: var(--faint); text-transform: uppercase; font-variant-numeric: tabular-nums;
+  }
+  /* Only rendered when rain is actually forecast, so its presence is the signal. */
+  .w-precip {
+    font-family: var(--font-mono); font-size: 9px; line-height: 1;
+    color: var(--accent); font-variant-numeric: tabular-nums;
+  }
+  .w-precip:empty { display: none; }
+
+  /* ── Grid + cards ──────────────────────────────────────────────── */
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
     gap: 20px;
   }
   /* When compressed to the shortest card in its row, taller cards scroll internally. */
   .card.row-compressed { overflow: auto; }
   .card {
+    position: relative;
     background: var(--card);
     border: 1px solid var(--card-border);
-    border-radius: 10px;
-    padding: 20px;
+    border-radius: var(--radius);
+    padding: 22px;
+    backdrop-filter: blur(16px) saturate(130%);
+    -webkit-backdrop-filter: blur(16px) saturate(130%);
+  }
+  /* A light catching the top edge of each panel. */
+  .card::before {
+    content: '';
+    position: absolute; top: 0; left: 18px; right: 18px; height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 50%, transparent), transparent);
+    opacity: 0.55;
+    pointer-events: none;
   }
   .card h2 {
-    margin: 0 0 4px 0;
-    font-size: 15px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    margin: 0 0 6px 0;
+    font-family: var(--font-mono);
+    font-size: 11px; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 9px;
   }
-  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-  .dot.dell { background: var(--dell-blue); }
-  .dot.hob { background: var(--hob-amber); }
-  .dot.career { background: var(--career-purple); }
-  .dot.personal { background: var(--personal-green); }
-  .dot.clarity { background: #6366f1; }
-  .card .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex: none; }
+  .dot.career { background: var(--career-purple); box-shadow: 0 0 9px var(--career-purple); }
+  .dot.personal { background: var(--personal-green); box-shadow: 0 0 9px var(--personal-green); }
+  .dot.clarity { background: var(--clarity-indigo); box-shadow: 0 0 9px var(--clarity-indigo); }
+  .dot.effie { background: var(--effie-pink); box-shadow: 0 0 9px var(--effie-pink); }
+  .card .sub { color: var(--muted); font-size: 12px; line-height: 1.5; margin-bottom: 16px; }
+  .card .sub code {
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--accent); background: var(--accent-dim);
+    padding: 1px 5px; border-radius: 4px;
+  }
 
-  /* Priorities */
-  .task-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 0;
-    border-bottom: 1px solid var(--card-border);
-  }
-  .task-item:last-child { border-bottom: none; }
-  .task-item input[type="checkbox"] { accent-color: var(--dell-blue); width: 16px; height: 16px; cursor: pointer; }
-  .task-item span { flex: 1; font-size: 14px; }
-  .task-item.done span { text-decoration: line-through; color: var(--muted); }
-  .task-item button.remove {
-    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 6px;
-  }
-  .task-item button.remove:hover { color: var(--danger); }
   /* Clarity full-app embed */
   .clarity-frame {
     width: 100%;
-    border: 1px solid var(--card-border);
-    border-radius: 8px;
-    background: var(--bg);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
     display: block;
     flex: 1 1 auto;
     min-height: 0;
@@ -167,163 +314,256 @@
   /* Clarity card grows to fit its app when not compressed by a shorter row-mate. */
   #clarity-card { display: flex; flex-direction: column; }
 
-  .add-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-  .add-row input {
-    flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
-    color: var(--text); padding: 7px 10px; font-size: 13px;
-  }
-  .add-row input[type="text"] { flex-basis: 100%; }
-  .add-row button {
-    background: var(--card-border); border: none; border-radius: 6px; color: var(--text);
-    padding: 7px 12px; cursor: pointer; font-size: 13px;
-  }
-  .add-row button:hover { background: var(--hover); }
-
-  /* Auth bar + gate */
+  /* ── Auth bar + gate ───────────────────────────────────────────── */
   #auth-bar {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 20px;
-    font-size: 12px; color: var(--muted); flex-wrap: wrap;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-bottom: 22px; flex-wrap: wrap;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--faint);
   }
   .data-btn {
-    background: var(--card-border); border: none; border-radius: 6px; color: var(--text);
-    padding: 7px 12px; cursor: pointer; font-size: 12px;
+    background: transparent; border: 1px solid var(--card-border); border-radius: var(--radius-sm);
+    color: var(--text); cursor: pointer;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 8px 14px;
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
   }
-  .data-btn:hover { background: var(--hover); }
-  #auth-gate { max-width: 380px; margin: 0 auto 20px; }
+  .data-btn:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: var(--accent-dim); }
+  .data-btn:focus-visible { outline: none; box-shadow: var(--glow); }
+  #auth-gate { max-width: 400px; margin: 8vh auto 20px; }
   #auth-gate input {
-    width: 100%; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
-    color: var(--text); padding: 8px 10px; font-size: 13px; margin-bottom: 10px;
+    width: 100%; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+    color: var(--text); font-family: var(--font-sans); font-size: 13px;
+    padding: 10px 12px; margin-bottom: 10px;
+    transition: border-color .15s ease, box-shadow .15s ease;
   }
-  #auth-gate .auth-row { display: flex; gap: 8px; }
-  #auth-gate .auth-row button { flex: 1; }
-  #auth-error { color: var(--danger); font-size: 12px; margin-top: 10px; min-height: 14px; }
+  #auth-gate input:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: var(--glow); }
+  #auth-gate .auth-row { display: flex; gap: 8px; margin-top: 4px; }
+  #auth-gate .auth-row button { flex: 1; padding: 10px 14px; }
+  #auth-error { color: var(--danger); font-size: 12px; margin-top: 12px; min-height: 14px; }
 
-  /* Career tracker */
-  .cert-row { margin-bottom: 14px; }
-  .cert-row-top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
-  .cert-row-top .pct { color: var(--muted); }
-  .bar-track { background: var(--surface); border-radius: 6px; height: 8px; overflow: hidden; }
-  .bar-fill { background: var(--career-purple); height: 100%; transition: width 0.15s ease; }
-  .bar-controls { display: flex; gap: 6px; margin-top: 6px; }
-  .bar-controls button {
-    background: var(--card-border); border: none; border-radius: 4px; color: var(--text);
-    width: 24px; height: 24px; cursor: pointer; font-size: 13px;
+  /* ── Career tracker ────────────────────────────────────────────── */
+  label.field-label {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--faint); display: block; margin: 16px 0 7px;
   }
-  .bar-controls button:hover { background: var(--hover); }
-  label.field-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); display: block; margin: 14px 0 6px; }
-  select, .num-input {
-    width: 100%; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
-    color: var(--text); padding: 7px 10px; font-size: 13px;
+  textarea {
+    width: 100%; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+    color: var(--text); padding: 9px 11px; font-size: 13px; font-family: var(--font-sans);
+    resize: vertical; min-height: 50px;
+    transition: border-color .15s ease, box-shadow .15s ease;
   }
+  textarea:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: var(--glow); }
+  /* Career Improvement Tracker: tighter, fixed-height textarea rows (no trailing whitespace) */
+  #learning-log, #career-notes {
+    min-height: 36px; max-height: 36px; height: 36px; padding: 7px 11px;
+    font-size: 12px; line-height: 1.35; resize: none; overflow: auto;
+  }
+  /* Career Improvement Tracker: compress the whole segment */
+  #card-career .sub { margin-bottom: 8px; }
+  #card-career label.field-label { margin: 12px 0 6px; }
+  #card-career .ticker { height: 104px; }
 
-  /* Auto-scrolling DBA jobs ticker */
+  /* ── Tickers ───────────────────────────────────────────────────── */
+  /* Duration is set per-ticker in JS from the item count, so a 4-item and a 14-item
+     feed scroll at the same readable pace instead of sharing one fixed 18s loop. */
   .ticker {
     position: relative; height: 150px; overflow: hidden;
-    background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
   }
+  /* Fade the top and bottom edges so rows enter and leave instead of being cut mid-line. */
+  .ticker::before, .ticker::after {
+    content: ''; position: absolute; left: 0; right: 0; height: 16px; z-index: 2; pointer-events: none;
+  }
+  .ticker::before { top: 0; background: linear-gradient(var(--surface), transparent); }
+  .ticker::after { bottom: 0; background: linear-gradient(transparent, var(--surface)); }
   .ticker-track { position: absolute; width: 100%; animation: ticker-scroll 18s linear infinite; }
-  .ticker-track:hover { animation-play-state: paused; }
-  .ticker-item { padding: 8px 12px; font-size: 12px; border-bottom: 1px solid var(--card-border); }
+  /* Pause on hover (mouse), on keyboard focus, and on tap (.paused toggled in JS for touch,
+     where :hover never fires and the feed would otherwise be unreadable). */
+  .ticker:hover .ticker-track,
+  .ticker:focus-within .ticker-track,
+  .ticker.paused .ticker-track { animation-play-state: paused; }
+  .ticker-item { padding: 9px 13px; font-size: 12px; border-bottom: 1px solid var(--hairline); }
   .ticker-item:last-child { border-bottom: none; }
-  .ticker-item .title { font-weight: 600; margin-bottom: 2px; }
-  .ticker-item .meta { color: var(--muted); }
+  .ticker-item .title { font-weight: 500; font-size: 12.5px; letter-spacing: -0.005em; margin-bottom: 3px; }
+  .ticker-item .meta {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.01em; color: var(--muted);
+  }
+  .ticker-item a.feed-link { display: block; color: inherit; text-decoration: none; }
+  .ticker-item a.feed-link:hover .title,
+  .ticker-item a.feed-link:focus-visible .title { color: var(--accent); }
+  .ticker-item a.feed-link:focus-visible { outline: none; box-shadow: var(--glow); border-radius: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .chip {
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase;
+    line-height: 1; padding: 4px 7px; border-radius: 999px;
+    border: 1px solid var(--hairline); background: transparent; color: var(--muted); white-space: nowrap;
+  }
+  /* The accent is reserved for the thing this feed exists to surface. */
+  .chip.pg {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
   @keyframes ticker-scroll {
     0%   { transform: translateY(0); }
     100% { transform: translateY(-50%); }
   }
 
-  /* House of Bracelet */
-  .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-  .stat-box { background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px; }
-  .stat-box .stat-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-  .stat-box input { width: 100%; background: none; border: none; color: var(--text); font-size: 20px; font-weight: 600; padding: 0; }
-  textarea {
-    width: 100%; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
-    color: var(--text); padding: 8px 10px; font-size: 13px; resize: vertical; min-height: 50px; font-family: inherit;
+  /* Freshness stamp under a feed heading: a dot that turns amber once the feed is overdue. */
+  .feed-meta {
+    display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.02em;
   }
-  /* Career Improvement Tracker: tighter, fixed-height textarea rows (no trailing whitespace) */
-  #learning-log, #career-notes {
-    min-height: 34px; max-height: 34px; height: 34px; padding: 5px 9px;
-    font-size: 12px; line-height: 1.3; resize: none; overflow: auto;
+  .stale-dot {
+    width: 5px; height: 5px; border-radius: 50%; flex: none;
+    background: var(--personal-green); box-shadow: 0 0 7px var(--personal-green);
   }
-  /* Career Improvement Tracker: compress the whole segment */
-  #card-career .sub { margin-bottom: 6px; }
-  #card-career label.field-label { margin: 10px 0 5px; }
-  #card-career .ticker { height: 96px; }
+  .stale-dot.stale { background: var(--hob-amber); box-shadow: 0 0 7px var(--hob-amber); }
+  .stale-dot.unknown { background: var(--faint); box-shadow: none; }
 
-  /* Personal */
+  /* Hairline across the top of the viewport showing how far through the day (06:00–22:00) we are. */
+  #day-progress {
+    position: fixed; top: 0; left: 0; height: 2px; width: 0; z-index: 60; pointer-events: none;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 40%, transparent), var(--accent));
+    box-shadow: 0 0 14px -2px var(--accent);
+    transition: width 1s linear;
+  }
+
+  /* ── Personal ──────────────────────────────────────────────────── */
+  /* No box — just a rule and quieter ink. */
   .quote-box {
-    background: var(--surface); border-left: 3px solid var(--personal-green); border-radius: 6px;
-    padding: 12px 14px; font-size: 13px; color: var(--muted); font-style: italic; margin-bottom: 12px;
+    border-left: 2px solid var(--accent);
+    padding: 3px 0 3px 14px;
+    font-size: 13px; line-height: 1.6; color: var(--muted);
+    margin-bottom: 18px;
   }
-  .link-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-  .link-row a {
-    background: var(--card-border); color: var(--text); text-decoration: none; font-size: 12px;
-    padding: 6px 10px; border-radius: 6px;
+
+  /* ── Effie's Day ───────────────────────────────────────────────── */
+  /* "Right now / next up" banner — recomputed every 30s so it stays true through the day */
+  .now-next {
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    background: color-mix(in srgb, var(--effie-pink) 7%, var(--surface));
+    border: 1px solid var(--hairline);
+    border-left: 2px solid var(--effie-pink);
+    border-radius: var(--radius-sm);
+    padding: 9px 12px; margin-bottom: 12px;
   }
-  .link-row a:hover { background: var(--hover); }
+  .now-next .nn-label {
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--faint); flex: none;
+  }
+  .now-next .nn-main { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+  .now-next .nn-time {
+    font-family: var(--font-mono); font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  .now-next .nn-next {
+    margin-left: auto; text-align: right;
+    font-family: var(--font-mono); font-size: 10px; color: var(--faint);
+  }
+  .now-next.off { border-left-color: var(--hairline); background: var(--surface); }
 
-  footer { margin-top: 28px; color: var(--muted); font-size: 11px; text-align: center; }
-
-  .dot.effie { background: #ec4899; }
-
-  /* Effie's Day — vertical auto-scroll ticker (mirrors the DBA jobs ticker) */
+  /* Vertical auto-scroll ticker for the timetable */
   .effie-ticker { height: 140px; }
   .effie-row {
-    display: flex; gap: 10px; align-items: baseline; padding: 5px 12px;
-    font-size: 12px; border-bottom: 1px solid var(--card-border);
+    display: flex; gap: 12px; align-items: baseline; padding: 6px 13px;
+    font-size: 12px; border-bottom: 1px solid var(--hairline);
   }
-  .effie-row .t-time { flex: none; width: 84px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .effie-row .t-time {
+    flex: none; width: 88px; color: var(--faint);
+    font-family: var(--font-mono); font-size: 10px; font-variant-numeric: tabular-nums;
+  }
   .effie-row .t-act { color: var(--text); }
-  .effie-row.break .t-act, .effie-row.break .t-time { color: var(--muted); font-style: italic; }
-  .effie-row.now { background: color-mix(in srgb, #ec4899 14%, transparent); }
+  .effie-row.break .t-act, .effie-row.break .t-time { color: var(--faint); }
+  .effie-row.now {
+    background: color-mix(in srgb, var(--effie-pink) 13%, transparent);
+    box-shadow: inset 2px 0 0 var(--effie-pink);
+  }
+  .effie-row.now .t-act { font-weight: 600; }
   /* The track holds today's rows twice; the shared ticker-scroll keyframe
      translates -50% so the second copy loops seamlessly. */
   .effie-ticker .ticker-track { animation: ticker-scroll 14s linear infinite; }
-  .effie-ticker .ticker-track:hover { animation-play-state: paused; }
+
   /* Day tabs */
-  .effie-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .effie-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
   .effie-tabs button {
-    flex: 1; padding: 6px 0; border: 1px solid var(--card-border); background: var(--surface);
-    color: var(--muted); border-radius: 6px; font-size: 12px; cursor: pointer;
+    flex: 1; padding: 7px 0;
+    border: 1px solid var(--hairline); background: transparent; color: var(--faint);
+    border-radius: var(--radius-sm); cursor: pointer;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
     transition: background .15s ease, color .15s ease, border-color .15s ease;
   }
-  .effie-tabs button:hover { background: var(--hover); }
+  .effie-tabs button:hover { color: var(--text); border-color: var(--card-border); }
   .effie-tabs button.active {
-    background: color-mix(in srgb, #ec4899 16%, transparent);
-    color: var(--text); border-color: #ec4899;
+    background: color-mix(in srgb, var(--effie-pink) 12%, transparent);
+    color: var(--effie-pink);
+    border-color: color-mix(in srgb, var(--effie-pink) 55%, transparent);
   }
+  .effie-tabs button:focus-visible { outline: none; box-shadow: var(--glow); }
+
   /* Weekly School Menu — horizontally scrollable table; today's column highlighted */
-  .menu-sub { margin-top: 14px; }
-  .menu-scroll { overflow-x: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; }
+  .menu-sub { margin-top: 16px; margin-bottom: 0; }
+  .menu-scroll { overflow-x: auto; margin-top: 10px; -webkit-overflow-scrolling: touch; }
   .menu-table { width: 100%; border-collapse: collapse; font-size: 11px; }
   .menu-table th, .menu-table td {
-    border: 1px solid var(--card-border); padding: 6px 8px; vertical-align: top; text-align: left;
+    border: 1px solid var(--hairline); padding: 7px 9px; vertical-align: top; text-align: left;
   }
   .menu-table thead th {
-    color: var(--muted); font-weight: 600; font-size: 10px; letter-spacing: 0.04em;
-    text-transform: uppercase; background: var(--surface); white-space: nowrap;
+    font-family: var(--font-mono); font-size: 9px; font-weight: 500;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--faint); background: var(--surface); white-space: nowrap;
   }
   .menu-table tbody th {
-    color: var(--muted); font-weight: 600; white-space: normal; width: 116px; background: var(--surface);
+    font-family: var(--font-mono); font-size: 9px; font-weight: 500;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--faint); white-space: normal; width: 108px; background: var(--surface);
   }
-  .menu-table td { color: var(--text); line-height: 1.45; }
+  .menu-table td { color: var(--text); line-height: 1.5; }
   .menu-table td .dish { display: block; }
-  .menu-table td.today { background: color-mix(in srgb, #ec4899 12%, transparent); }
+  .menu-table td.today { background: color-mix(in srgb, var(--effie-pink) 10%, transparent); }
   .menu-table thead th.today {
-    background: color-mix(in srgb, #ec4899 20%, transparent); color: var(--text); border-color: #ec4899;
+    background: color-mix(in srgb, var(--effie-pink) 16%, transparent);
+    color: var(--effie-pink);
+    border-color: color-mix(in srgb, var(--effie-pink) 45%, transparent);
   }
   .menu-table td.snack { color: var(--muted); }
 
-  /* Mobile: prevent horizontal overflow from the 340px grid minimum and tight padding */
-  @media (max-width: 480px) {
-    body { padding: 16px; }
-    .grid { grid-template-columns: 1fr; }
-    .stat-grid { grid-template-columns: 1fr 1fr; }
+  /* ── Footer ────────────────────────────────────────────────────── */
+  footer {
+    margin-top: 36px; padding-top: 18px;
+    border-top: 1px solid var(--hairline);
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+    color: var(--faint); text-align: center;
+  }
+
+  /* Respect the OS "reduce motion" setting: no perpetual scroll, no animated progress line.
+     Tickers become ordinary scrollable lists (JS also stops duplicating rows in this mode). */
+  @media (prefers-reduced-motion: reduce) {
+    .ticker-track { animation: none !important; position: static; }
+    .ticker { overflow-y: auto; }
+    .ticker::before, .ticker::after { display: none; }
+    #day-progress { transition: none; }
+    .effie-tabs button, .icon-btn, .data-btn, textarea, #auth-gate input { transition: none; }
+  }
+
+  /* Mobile: prevent horizontal overflow from the grid minimum and tight padding */
+  @media (max-width: 560px) {
+    body { padding: 20px 16px 24px; }
+    .grid { grid-template-columns: 1fr; gap: 16px; }
+    .card { padding: 18px; }
+    header { align-items: flex-start; gap: 12px; }
+    .header-right { gap: 14px; width: 100%; justify-content: space-between; }
+    .weather { gap: 13px; }
+    .w-slot { min-width: 30px; }
+    #auth-gate { margin-top: 4vh; }
   }
 </style>
 </head>
 <body>
+
+<div id="day-progress" aria-hidden="true"></div>
 
 <header>
   <h1>Daily Dashboard</h1>
@@ -331,26 +571,40 @@
     <div class="weather" id="weather" aria-label="Weather forecast" hidden>
       <div class="w-slot" id="w-now">
         <span class="w-icon" id="w-now-icon"></span>
+        <span class="w-temp" id="w-now-temp"></span>
         <span class="w-label" id="w-now-label">NOW</span>
+        <span class="w-precip" id="w-now-precip"></span>
       </div>
       <div class="w-slot" id="w-h2">
         <span class="w-icon" id="w-h2-icon"></span>
+        <span class="w-temp" id="w-h2-temp"></span>
         <span class="w-label" id="w-h2-label"></span>
+        <span class="w-precip" id="w-h2-precip"></span>
       </div>
       <div class="w-slot" id="w-h4">
         <span class="w-icon" id="w-h4-icon"></span>
+        <span class="w-temp" id="w-h4-temp"></span>
         <span class="w-label" id="w-h4-label"></span>
+        <span class="w-precip" id="w-h4-precip"></span>
       </div>
       <div class="w-slot" id="w-h6">
         <span class="w-icon" id="w-h6-icon"></span>
+        <span class="w-temp" id="w-h6-temp"></span>
         <span class="w-label" id="w-h6-label"></span>
+        <span class="w-precip" id="w-h6-precip"></span>
       </div>
       <div class="w-slot" id="w-h8">
         <span class="w-icon" id="w-h8-icon"></span>
+        <span class="w-temp" id="w-h8-temp"></span>
         <span class="w-label" id="w-h8-label"></span>
+        <span class="w-precip" id="w-h8-precip"></span>
       </div>
     </div>
-    <div class="date" id="today"></div>
+    <div class="date">
+      <span id="today"></span>
+      <span class="clock" id="clock" aria-label="Current time"></span>
+      <button id="theme-btn" class="icon-btn" type="button" title="Theme: follow system" aria-label="Theme: follow system"></button>
+    </div>
   </div>
 </header>
 
@@ -378,7 +632,7 @@
   <!-- Clarity (full task manager, embedded live) -->
   <div class="card" id="clarity-card">
     <h2><span class="dot clarity"></span>Clarity</h2>
-    <div class="sub">Your full Clarity task manager — same account, live sync. Tip: <b>N</b> to add, <b>&sol;</b> to search</div>
+    <div class="sub">Full task manager, same account, live sync &middot; <code>N</code> to add, <code>&sol;</code> to search</div>
     <iframe
       id="clarity-frame"
       class="clarity-frame"
@@ -398,7 +652,10 @@
     <textarea id="learning-log" placeholder="What did you learn today?"></textarea>
 
     <label class="field-label">Weekly Cyberjaya DBA Jobs</label>
-    <div class="sub" style="margin-bottom:8px;">Live via the <code>dba_jobs</code> table &middot; refreshed by the Mon/Thu 09:00 job &middot; <span id="dba-count"></span> live</div>
+    <div class="sub feed-meta" style="margin-bottom:8px;">
+      <span class="stale-dot unknown" id="dba-dot"></span>
+      <span id="dba-freshness">Loading&hellip;</span>
+    </div>
     <div class="ticker">
       <div class="ticker-track" id="dba-ticker-track"></div>
     </div>
@@ -415,7 +672,10 @@
     <div class="quote-box" id="quote"></div>
 
     <label class="field-label">Malaysia Tech News — Top 10</label>
-    <div class="sub" style="margin-bottom:8px;">Refreshed daily at 8:08am &middot; live, no manual updates needed</div>
+    <div class="sub feed-meta" style="margin-bottom:8px;">
+      <span class="stale-dot unknown" id="news-dot"></span>
+      <span id="news-freshness">Loading&hellip;</span>
+    </div>
     <div class="ticker">
       <div class="ticker-track" id="tech-news-track"></div>
     </div>
@@ -426,6 +686,13 @@
   <div class="card">
     <h2><span class="dot effie"></span>Effie's Day</h2>
     <div class="sub">Year 2 weekly class timetable</div>
+
+    <div class="now-next" id="effie-now-next" hidden>
+      <span class="nn-label">Now</span>
+      <span class="nn-main" id="nn-main"></span>
+      <span class="nn-time" id="nn-time"></span>
+      <span class="nn-next" id="nn-next"></span>
+    </div>
 
     <div class="effie-tabs" id="effie-tabs"></div>
 
@@ -442,14 +709,107 @@
 </div>
 
 <footer>
-  Daily Dashboard · data synced live via Supabase, tied to your signed-in account · edit this file directly to change layout or wording
+  Synced live via Supabase &middot; tied to your signed-in account
 </footer>
 
 <script>
-  // ---- date ----
-  document.getElementById('today').textContent = new Date().toLocaleDateString('en-MY', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  // ---- shared helpers ----
+
+  // Feed rows are scraped from third-party sites, so everything interpolated into
+  // innerHTML goes through esc() first. A headline containing "<" used to break markup.
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  // Only ever emit http(s) hrefs — a scraped row must not be able to inject javascript:.
+  const safeUrl = u => (/^https?:\/\//i.test(String(u || '')) ? String(u) : null);
+
+  // The scrapers write literal strings like "Not available" instead of NULL, so the old
+  // .filter(Boolean) let them through: jobs rendered as
+  // "Great Eastern · Cyberjaya · Not available · Not available".
+  const PLACEHOLDER = /^(not available|not specified|not disclosed|n\/?a|none|unknown|-|\u2014)$/i;
+  const clean = v => {
+    const t = String(v == null ? '' : v).trim();
+    return t && !PLACEHOLDER.test(t) ? t : null;
+  };
+
+  const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function relTime(iso) {
+    if (!iso) return null;
+    const then = new Date(iso).getTime();
+    if (!Number.isFinite(then)) return null;
+    const mins = Math.round((Date.now() - then) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    const days = Math.round(hrs / 24);
+    return days === 1 ? 'yesterday' : days + 'd ago';
+  }
+
+  // Feeds are refreshed by scheduled jobs the page can't see. Show how old the newest row
+  // is and turn the dot amber once the feed is past due, so a silently-dead scraper is visible.
+  function stampFeed(dotId, textId, newestIso, count, staleHours, cadence) {
+    const dot = document.getElementById(dotId);
+    const label = document.getElementById(textId);
+    if (!dot || !label) return;
+    const ageH = newestIso ? (Date.now() - new Date(newestIso).getTime()) / 3.6e6 : null;
+    const state = ageH === null ? 'unknown' : (ageH > staleHours ? 'stale' : 'fresh');
+    dot.className = 'stale-dot' + (state === 'fresh' ? '' : ' ' + state);
+    dot.title = { fresh: 'Feed is up to date', stale: 'Overdue for a refresh', unknown: 'Freshness unknown' }[state];
+    label.textContent = count
+      ? count + ' item' + (count === 1 ? '' : 's') + ' \u00b7 updated ' + (relTime(newestIso) || 'unknown') + ' \u00b7 ' + cadence
+      : 'Nothing loaded yet \u00b7 ' + cadence;
+  }
+
+  // Tickers loop by duplicating their rows and translating -50%. Pace the animation by row
+  // count so a 4-item and a 14-item feed read at the same speed instead of sharing one 18s loop.
+  const TICKER_SECONDS_PER_ITEM = 2.8;
+  const shouldLoop = count => !REDUCED && count >= 4;
+  function paceTicker(track, count) {
+    if (!track) return;
+    if (shouldLoop(count)) {
+      track.style.animation = '';
+      track.style.animationDuration = Math.max(10, count * TICKER_SECONDS_PER_ITEM).toFixed(1) + 's';
+    } else {
+      track.style.animation = 'none';
+    }
+  }
+
+  // Touch devices never fire :hover, so tapping a ticker freezes it instead of leaving the
+  // reader chasing a moving row. Taps on an actual link still open the link.
+  document.addEventListener('click', e => {
+    const t = e.target.closest && e.target.closest('.ticker');
+    if (t && !e.target.closest('a')) t.classList.toggle('paused');
   });
+
+  // Row heights are equalised once at sign-in, but feeds, the weather strip and the Clarity
+  // iframe all resolve afterwards and change card heights. Re-run the pass when content lands.
+  let relayoutTimer;
+  function scheduleRelayout() {
+    clearTimeout(relayoutTimer);
+    relayoutTimer = setTimeout(() => compressRowsToShortest(), 120);
+  }
+
+  // ---- date, live clock, day-progress hairline ----
+  const todayEl = document.getElementById('today');
+  const clockEl = document.getElementById('clock');
+  const dayProgressEl = document.getElementById('day-progress');
+  const DAY_START = 6 * 60, DAY_END = 22 * 60; // the hairline spans 06:00 -> 22:00
+
+  function tickClock() {
+    const now = new Date();
+    // Rewritten each tick so the header rolls over correctly at midnight.
+    todayEl.textContent = now.toLocaleDateString('en-MY', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+    clockEl.textContent = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const mins = now.getHours() * 60 + now.getMinutes();
+    dayProgressEl.style.width =
+      Math.min(100, Math.max(0, ((mins - DAY_START) / (DAY_END - DAY_START)) * 100)) + '%';
+  }
+  tickClock();
+  setInterval(tickClock, 15000);
 
   // ---- quotes (rotate daily, personal touch) ----
   const quotes = [
@@ -460,12 +820,44 @@
   ];
   document.getElementById('quote').textContent = quotes[new Date().getDate() % quotes.length];
 
-  // ---- theme: drive data-theme from system preference (so the embedded Clarity app can sync to it) ----
+  // ---- theme: follows the system by default, with a manual override that persists ----
+  // The header button cycles system -> light -> dark. data-theme is always written explicitly
+  // so the embedded Clarity app can mirror it over postMessage, and the theme-color meta is
+  // kept in sync so mobile browser chrome matches an override rather than the OS setting.
   (function () {
     const root = document.documentElement;
-    const applySystemTheme = () => root.setAttribute('data-theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    applySystemTheme();
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applySystemTheme);
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const KEY = 'dash_theme';
+    const btn = document.getElementById('theme-btn');
+    const meta = document.getElementById('theme-color-meta');
+    const BG = { dark: '#06070b', light: '#f2f4f8' };
+    const ICON = {
+      system: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
+      light: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+      dark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>'
+    };
+    const LABEL = { system: 'Theme: follow system', light: 'Theme: light', dark: 'Theme: dark' };
+    let mode = localStorage.getItem(KEY);
+    if (!ICON[mode]) mode = 'system';
+
+    const resolved = () => (mode === 'system' ? (mq.matches ? 'dark' : 'light') : mode);
+    function apply() {
+      const t = resolved();
+      root.setAttribute('data-theme', t);
+      if (meta) meta.setAttribute('content', BG[t]);
+      if (btn) {
+        btn.innerHTML = ICON[mode];
+        btn.title = LABEL[mode];
+        btn.setAttribute('aria-label', LABEL[mode]);
+      }
+    }
+    mq.addEventListener('change', () => { if (mode === 'system') apply(); });
+    if (btn) btn.addEventListener('click', () => {
+      mode = mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system';
+      try { localStorage.setItem(KEY, mode); } catch (e) { /* private mode */ }
+      apply();
+    });
+    apply();
   })();
 
   // ---- Supabase client ----
@@ -494,39 +886,81 @@
     { title: 'Database Administrator — Infinitium Group', meta: 'Ara Damansara, Hybrid · PostgreSQL, MSSQL, EDB · 7 days ago' },
     { title: 'Database (DBA) Engineer — CMA Solutions', meta: 'Subang Jaya · SQL Server, PostgreSQL, MySQL · RM 5,000–7,500/mo · 3 days ago' }
   ];
-  let dbaJobs = dbaJobsSnapshot.slice();
+  // Snapshot rows carry a single pre-joined meta string; live rows are structured.
+  // normaliseJob() turns both into the same shape the ticker renders.
+  let dbaJobs = dbaJobsSnapshot.map(j => ({ title: j.title, url: null, meta: [j.meta], chips: [], note: null }));
   const dbaTrackEl = document.getElementById('dba-ticker-track');
-  const dbaCountEl = document.getElementById('dba-count');
+
+  function normaliseJob(j) {
+    // clean() drops the scrapers' literal "Not available" / "Not specified" placeholders,
+    // which the old .filter(Boolean) rendered verbatim into every meta line.
+    const meta = [
+      clean(j.company), clean(j.location), clean(j.seniority),
+      clean(j.employment_type), clean(j.work_mode), clean(j.salary)
+    ].filter(Boolean);
+    const posted = relTime(j.posted_date || j.created_at);
+    if (posted) meta.push(posted);
+
+    const chips = [];
+    if (j.pg_match) chips.push({ text: 'PostgreSQL match', pg: true });
+    const tech = clean(j.tech);
+    if (tech) {
+      tech.split(/\s*,\s*/).filter(Boolean).slice(0, 5).forEach(t => {
+        // Don't repeat "PostgreSQL" as a plain chip when the pg_match badge already says it.
+        if (!(j.pg_match && /^postgre/i.test(t))) chips.push({ text: t, pg: false });
+      });
+    }
+    return { title: j.title, url: safeUrl(j.url), meta, chips, note: clean(j.relevance_note) };
+  }
+
+  function jobRowHtml(j) {
+    const inner =
+      '<div class="title">' + esc(j.title) + '</div>' +
+      '<div class="meta">' + j.meta.map(esc).join(' &middot; ') + '</div>' +
+      (j.chips.length
+        ? '<div class="chips">' + j.chips.map(c =>
+            '<span class="chip' + (c.pg ? ' pg' : '') + '">' + esc(c.text) + '</span>').join('') + '</div>'
+        : '');
+    const tip = j.note ? ' title="' + esc(j.note) + '"' : '';
+    // The `url` column was in the table all along but never surfaced — postings are now openable.
+    return '<div class="ticker-item">' + (j.url
+      ? '<a class="feed-link" href="' + esc(j.url) + '" target="_blank" rel="noopener noreferrer"' + tip + '>' + inner + '</a>'
+      : '<div' + tip + '>' + inner + '</div>') + '</div>';
+  }
 
   function renderDbaJobs() {
-    const itemsHtml = dbaJobs.map(j => `
-      <div class="ticker-item">
-        <div class="title">${j.title}</div>
-        <div class="meta">${j.meta}</div>
-      </div>
-    `).join('');
-    dbaTrackEl.style.animation = dbaJobs.length >= 4 ? '' : 'none';
-    dbaTrackEl.innerHTML = dbaJobs.length
-      ? itemsHtml + (dbaJobs.length >= 4 ? itemsHtml : '')
-      : '<div class="ticker-item"><div class="title">No DBA jobs loaded yet</div><div class="meta">Feed not wired — showing the 2026-08-03 snapshot for now.</div></div>';
+    if (!dbaJobs.length) {
+      dbaTrackEl.innerHTML =
+        '<div class="ticker-item"><div class="title">No DBA jobs loaded yet</div>' +
+        '<div class="meta">Waiting on the Mon/Thu 09:00 scrape, or check your connection.</div></div>';
+      paceTicker(dbaTrackEl, 0);
+      scheduleRelayout();
+      return;
+    }
+    const html = dbaJobs.map(jobRowHtml).join('');
+    dbaTrackEl.innerHTML = shouldLoop(dbaJobs.length) ? html + html : html;
+    paceTicker(dbaTrackEl, dbaJobs.length);
+    scheduleRelayout();
   }
   renderDbaJobs();
 
-  // Pull live rows from Supabase when a feed populates `dba_jobs`; otherwise keep the snapshot.
+  // Pull live rows from Supabase; if the table is empty or errors, keep what's on screen.
+  const DBA_STALE_HOURS = 96; // the Mon/Thu cadence means a healthy feed is never older than ~4 days
   async function loadDbaJobs() {
     const { data, error } = await sb.from('dba_jobs')
-      .select('title, company, location, work_mode, salary, posted_date, created_at')
+      .select('title, url, company, location, work_mode, employment_type, seniority, tech, pg_match, salary, posted_date, relevance_note, created_at')
+      // PostgreSQL matches first — that's the whole point of tracking this feed.
+      .order('pg_match', { ascending: false })
       .order('created_at', { ascending: false })
-      .limit(10);
-    if (!error && data && data.length) {
-      // Normalize the table rows into the {title, meta} shape the ticker renders.
-      dbaJobs = data.map(j => ({
-        title: j.title,
-        meta: [j.company, j.location, j.work_mode, j.salary].filter(Boolean).join(' · ')
-      }));
-      if (dbaCountEl) dbaCountEl.textContent = data.length;
-      renderDbaJobs();
+      .limit(12);
+    if (error || !data || !data.length) {
+      stampFeed('dba-dot', 'dba-freshness', null, dbaJobs.length, DBA_STALE_HOURS, 'Mon/Thu 09:00 scrape');
+      return;
     }
+    dbaJobs = data.map(normaliseJob);
+    renderDbaJobs();
+    const newest = data.reduce((a, r) => (r.created_at > a ? r.created_at : a), data[0].created_at);
+    stampFeed('dba-dot', 'dba-freshness', newest, data.length, DBA_STALE_HOURS, 'Mon/Thu 09:00 scrape');
   }
   loadDbaJobs();
   sb.channel('dba-jobs-changes')
@@ -538,31 +972,51 @@
   // Public read-only table — no auth needed, so this loads independent of sign-in state.
   let techNews = [];
   const techNewsTrackEl = document.getElementById('tech-news-track');
+  const NEWS_STALE_HOURS = 30; // daily cadence, with slack for a late run
+
+  function newsRowHtml(n) {
+    const meta = [clean(n.source), relTime(n.published_date || n.created_at)]
+      .filter(Boolean).map(esc).join(' &middot; ');
+    const inner =
+      '<div class="title">' + esc(n.headline) + '</div>' +
+      '<div class="meta">' + meta + '</div>';
+    // tech_news carries no source URL, so link the headline to a search for it —
+    // one tap from "interesting" to the actual story.
+    const q = 'https://www.google.com/search?q=' + encodeURIComponent(n.headline || '');
+    return '<div class="ticker-item"><a class="feed-link" href="' + esc(q) +
+      '" target="_blank" rel="noopener noreferrer" title="Search for this story">' + inner + '</a></div>';
+  }
 
   function renderTechNews() {
-    const itemsHtml = techNews.map(n => `
-      <div class="ticker-item">
-        <div class="title">${n.headline}</div>
-        <div class="meta">${n.source || ''}</div>
-      </div>
-    `).join('');
-    techNewsTrackEl.style.animation = techNews.length >= 4 ? '' : 'none';
-    techNewsTrackEl.innerHTML = techNews.length
-      ? (techNews.length >= 4 ? itemsHtml + itemsHtml : itemsHtml)
-      : '<div class="ticker-item"><div class="title">No news loaded yet</div><div class="meta">Waiting on the daily 8:08am refresh, or check your connection.</div></div>';
+    if (!techNews.length) {
+      techNewsTrackEl.innerHTML =
+        '<div class="ticker-item"><div class="title">No news loaded yet</div>' +
+        '<div class="meta">Waiting on the daily 8:08am refresh, or check your connection.</div></div>';
+      paceTicker(techNewsTrackEl, 0);
+      scheduleRelayout();
+      return;
+    }
+    const html = techNews.map(newsRowHtml).join('');
+    techNewsTrackEl.innerHTML = shouldLoop(techNews.length) ? html + html : html;
+    paceTicker(techNewsTrackEl, techNews.length);
+    scheduleRelayout();
   }
   renderTechNews();
 
   async function loadTechNews() {
     const { data, error } = await sb.from('tech_news')
-      .select('*')
+      .select('headline, source, published_date, created_at')
       .order('published_date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(10);
-    if (!error && data) {
-      techNews = data;
-      renderTechNews();
+    if (error || !data || !data.length) {
+      stampFeed('news-dot', 'news-freshness', null, techNews.length, NEWS_STALE_HOURS, 'daily 8:08am refresh');
+      return;
     }
+    techNews = data;
+    renderTechNews();
+    const newest = data.reduce((a, r) => (r.created_at > a ? r.created_at : a), data[0].created_at);
+    stampFeed('news-dot', 'news-freshness', newest, data.length, NEWS_STALE_HOURS, 'daily 8:08am refresh');
   }
   loadTechNews();
 
@@ -606,16 +1060,22 @@
       }).subscribe();
 
     realtimeChannels = [careerCh];
+  }
 
-    // ---- Clarity iframe theme sync ----
-    // Clarity already implements the postMessage handshake: it posts { type: 'clarity:ready' }
-    // and listens for { type: 'theme', value }. Push our current theme to it, and again on changes.
+  // ---- Clarity iframe sync (wired once, at load) ----
+  // This used to live inside subscribeRealtime(), so each sign-in added another 'message'
+  // listener and MutationObserver that unsubscribeRealtime() never tore down.
+  // Clarity implements the handshake: it posts { type: 'clarity:ready' } and listens for
+  // { type: 'theme', value }.
+  (function wireClarity() {
     const clarityFrame = document.getElementById('clarity-frame');
-    // The Clarity app renders its own sign-out button(s); the dashboard already
-    // has a Sign out in #auth-bar, so hide Clarity's in-iframe chrome to avoid duplication.
+    if (!clarityFrame) return;
+
+    // Clarity renders its own sign-out button; the dashboard already has one in #auth-bar,
+    // so hide the in-iframe duplicate.
     const hideClaritySignout = () => {
       try {
-        const doc = clarityFrame?.contentDocument;
+        const doc = clarityFrame.contentDocument;
         if (!doc) return;
         doc.querySelectorAll('button').forEach(b => {
           if (b.textContent.trim() === 'Sign out') b.style.display = 'none';
@@ -624,16 +1084,23 @@
     };
     const pushClarityTheme = () => {
       const t = document.documentElement.getAttribute('data-theme') || 'dark';
-      clarityFrame?.contentWindow?.postMessage({ type: 'theme', value: t }, 'https://azmerfaiesal.github.io');
+      if (clarityFrame.contentWindow) {
+        clarityFrame.contentWindow.postMessage({ type: 'theme', value: t }, 'https://azmerfaiesal.github.io');
+      }
     };
     window.addEventListener('message', e => {
+      if (e.origin !== 'https://azmerfaiesal.github.io') return; // only trust the Clarity origin
       if (e.data && e.data.type === 'clarity:ready') { pushClarityTheme(); hideClaritySignout(); }
     });
-    const clarityThemeObserver = new MutationObserver(pushClarityTheme);
-    clarityThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    if (clarityFrame) clarityFrame.addEventListener('load', () => { pushClarityTheme(); compressRowsToShortest(); hideClaritySignout(); });
+    new MutationObserver(pushClarityTheme)
+      .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    clarityFrame.addEventListener('load', () => {
+      pushClarityTheme();
+      hideClaritySignout();
+      scheduleRelayout();
+    });
     pushClarityTheme();
-  }
+  })();
 
   function unsubscribeRealtime() {
     realtimeChannels.forEach(ch => sb.removeChannel(ch));
@@ -804,13 +1271,54 @@
 
   function renderEffie() {
     const day = EFFIE_DAYS[effieIdx];
+    const slots = EFFIE_TIMETABLE[day];
     effieTrack.innerHTML = '';
     const highlight = effieIdx === effieTodayIdx;
     // Render the day's rows twice so the -50% keyframe loops seamlessly.
     effieTrack.appendChild(buildEffieRows(day, highlight));
-    effieTrack.appendChild(buildEffieRows(day, highlight));
+    if (shouldLoop(slots.length)) effieTrack.appendChild(buildEffieRows(day, highlight));
+    paceTicker(effieTrack, slots.length);
     [...effieTabsEl.children].forEach((t, i) => t.classList.toggle('active', i === effieIdx));
     renderEffieMenu(); // menu follows the active day tab
+    scheduleRelayout();
+  }
+
+  // ---- Effie: "right now / next up" ----
+  // The .now highlight used to be computed once at page load and then stayed on whichever
+  // lesson happened to be running when the tab was opened. Both this banner and the row
+  // highlight are refreshed on a 30s tick; the highlight is toggled in place so the
+  // scroll animation never restarts.
+  const toMin = hhmm => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+  const nnEl = document.getElementById('effie-now-next');
+
+  function renderEffieNowNext() {
+    if (effieTodayIdx < 0) { nnEl.hidden = true; return; } // weekend: nothing is "now"
+    const slots = EFFIE_TIMETABLE[EFFIE_DAYS[effieTodayIdx]];
+    const now = effieNowMins();
+    let cur = null, next = null;
+    slots.forEach(([time, act]) => {
+      const [a, b] = time.split('\u2013');
+      if (now >= toMin(a) && now <= toMin(b)) cur = [time, act];
+      else if (!next && toMin(a) > now) next = [time, act];
+    });
+    nnEl.hidden = false;
+    nnEl.classList.toggle('off', !cur);
+    document.getElementById('nn-main').textContent = cur
+      ? cur[1]
+      : (now < toMin(slots[0][0].split('\u2013')[0]) ? 'School has not started' : 'School day over');
+    document.getElementById('nn-time').textContent = cur ? cur[0] : '';
+    document.getElementById('nn-next').textContent = next
+      ? 'Next \u00b7 ' + next[1] + ' at ' + next[0].split('\u2013')[0]
+      : '';
+  }
+
+  function refreshEffieNowClass() {
+    if (effieIdx !== effieTodayIdx) return;
+    [...effieTrack.children].forEach(row => {
+      if (row.classList.contains('break')) return;
+      const t = row.querySelector('.t-time');
+      if (t) row.classList.toggle('now', effieInSlot(t.textContent));
+    });
   }
   EFFIE_DAYS.forEach((d, i) => {
     const b = document.createElement('button');
@@ -886,12 +1394,14 @@
 
   // Initial render — after all Effie consts/functions are defined (avoids TDZ).
   renderEffie();
+  renderEffieNowNext();
+  setInterval(() => { renderEffieNowNext(); refreshEffieNowClass(); }, 30000);
 
   // ---- Minimal monochrome weather strip (MET Norway, no API key) ----
   // Cyberjaya coordinates. MET returns UTC timestamps; we convert to
   // Asia/Kuala_Lumpur with toLocaleString (handles DST correctly).
   const WEATHER = {
-    lat: 2.9271, lon: 101.6386, tz: 'Asia/Kuala_Lumpur', cacheKey: 'weather_v1',
+    lat: 2.9271, lon: 101.6386, tz: 'Asia/Kuala_Lumpur', cacheKey: 'weather_v2',
     refreshMs: 45 * 60 * 1000, endpoints: { now: 'w-now', h2: 'w-h2', h4: 'w-h4', h6: 'w-h6', h8: 'w-h8' }
   };
 
@@ -952,27 +1462,43 @@
     return best;
   }
 
+  const W_KEYS = ['now', 'h2', 'h4', 'h6', 'h8'];
+
   function renderWeather(slots) {
     const labels = { now: 'Current weather', h2: 'Weather in 2 hours', h4: 'Weather in 4 hours', h6: 'Weather in 6 hours', h8: 'Weather in 8 hours' };
     const labelText = { now: 'NOW', h2: fmtTime(slots.h2.time), h4: fmtTime(slots.h4.time), h6: fmtTime(slots.h6.time), h8: fmtTime(slots.h8.time) };
-    ['now', 'h2', 'h4', 'h6', 'h8'].forEach(k => {
+    W_KEYS.forEach(k => {
+      const slot = slots[k] || {};
       const el = document.getElementById('w-' + k);
-      const iconEl = document.getElementById('w-' + k + '-icon');
-      const labelEl = document.getElementById('w-' + k + '-label');
-      const [name, svg] = metSymbol(slots[k].code);
-      iconEl.innerHTML = svg;
-      labelEl.textContent = labelText[k];
-      el.setAttribute('aria-label', labels[k] + ': ' + name);
+      const [name, svg] = metSymbol(slot.code);
+      document.getElementById('w-' + k + '-icon').innerHTML = svg;
+      document.getElementById('w-' + k + '-label').textContent = labelText[k];
+
+      const temp = Number.isFinite(slot.temp) ? Math.round(slot.temp) + '\u00b0' : '';
+      document.getElementById('w-' + k + '-temp').textContent = temp;
+
+      // Only shown when rain is actually forecast, so its presence is the signal and the
+      // strip stays monochrome. .w-precip:empty is display:none.
+      const mm = Number.isFinite(slot.precip) && slot.precip > 0 ? slot.precip.toFixed(1) + 'mm' : '';
+      document.getElementById('w-' + k + '-precip').textContent = mm;
+
+      el.setAttribute('aria-label',
+        labels[k] + ': ' + name + (temp ? ', ' + temp.replace('\u00b0', ' degrees') : '') +
+        (mm ? ', ' + mm + ' rain' : ''));
     });
     document.getElementById('weather').hidden = false;
+    scheduleRelayout();
   }
   function showOffline() {
-    ['now', 'h2', 'h4', 'h6', 'h8'].forEach(k => {
+    W_KEYS.forEach(k => {
       document.getElementById('w-' + k + '-icon').innerHTML = offlineIcon();
-      document.getElementById('w-' + k + '-label').textContent = k === 'now' ? 'NOW' : (k === 'h2' ? '+2H' : k === 'h4' ? '+4H' : k === 'h6' ? '+6H' : '+8H');
+      document.getElementById('w-' + k + '-temp').textContent = '';
+      document.getElementById('w-' + k + '-precip').textContent = '';
+      document.getElementById('w-' + k + '-label').textContent = k === 'now' ? 'NOW' : '+' + k.slice(1) + 'H';
       document.getElementById('w-' + k).setAttribute('aria-label', 'Weather unavailable');
     });
     document.getElementById('weather').hidden = false;
+    scheduleRelayout();
   }
   function renderCached() {
     try {
@@ -998,7 +1524,12 @@
         iso: t.time,
         klHour: klHour(t.time),
         code: (t.data.next_1_hours && t.data.next_1_hours.summary.symbol_code)
-            || (t.data.next_6_hours && t.data.next_6_hours.summary.symbol_code) || 'cloudy'
+            || (t.data.next_6_hours && t.data.next_6_hours.summary.symbol_code) || 'cloudy',
+        // An icon alone can't tell 24 degrees from 34 — carry the numbers through too.
+        temp: t.data.instant && t.data.instant.details
+            ? t.data.instant.details.air_temperature : null,
+        precip: (t.data.next_1_hours && t.data.next_1_hours.details
+                  ? t.data.next_1_hours.details.precipitation_amount : null)
       }));
       const curHour = klHour(series[0].iso); // MET's first step is the current hour
       const iNow = 0;
@@ -1006,13 +1537,10 @@
       const i4 = nearestSlot(series, (curHour + 4) % 24);
       const i6 = nearestSlot(series, (curHour + 6) % 24);
       const i8 = nearestSlot(series, (curHour + 8) % 24);
-      const slots = {
-        now: { code: series[iNow].code, time: series[iNow].iso },
-        h2:  { code: series[i2].code, time: series[i2].iso },
-        h4:  { code: series[i4].code, time: series[i4].iso },
-        h6:  { code: series[i6].code, time: series[i6].iso },
-        h8:  { code: series[i8].code, time: series[i8].iso }
-      };
+      const pick = i => ({
+        code: series[i].code, time: series[i].iso, temp: series[i].temp, precip: series[i].precip
+      });
+      const slots = { now: pick(iNow), h2: pick(i2), h4: pick(i4), h6: pick(i6), h8: pick(i8) };
       try { localStorage.setItem(WEATHER.cacheKey, JSON.stringify({ slots, t: Date.now() })); } catch (e) {}
       renderWeather(slots);
     } catch (e) {
