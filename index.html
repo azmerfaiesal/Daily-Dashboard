@@ -244,32 +244,20 @@
 
   .dot.effie { background: #ec4899; }
 
-  /* Effie's Day — carousel */
-  .carousel { display: flex; align-items: stretch; gap: 10px; }
-  .carousel-arrow {
-    flex: none; width: 34px; border: 1px solid var(--card-border); background: var(--surface);
-    color: var(--text); border-radius: 8px; font-size: 20px; line-height: 1; cursor: pointer;
-    transition: background .15s ease;
+  /* Effie's Day — vertical auto-scroll ticker (mirrors the DBA jobs ticker) */
+  .effie-ticker { height: 140px; }
+  .effie-row {
+    display: flex; gap: 10px; align-items: baseline; padding: 5px 12px;
+    font-size: 12px; border-bottom: 1px solid var(--card-border);
   }
-  .carousel-arrow:hover { background: var(--hover); }
-  .carousel-view { flex: 1; min-width: 0; }
-  .carousel-day { font-weight: 600; font-size: 14px; margin-bottom: 8px; color: var(--accent); }
-  .timetable { list-style: none; margin: 0; padding: 0; }
-  .timetable li {
-    display: flex; gap: 12px; align-items: baseline; padding: 6px 0;
-    border-bottom: 1px solid var(--card-border); font-size: 13px;
-  }
-  .timetable li:last-child { border-bottom: none; }
-  .timetable .t-time { flex: none; width: 96px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .timetable .t-act { color: var(--text); }
-  .timetable li.break .t-act, .timetable li.break .t-time { color: var(--muted); font-style: italic; }
-  .timetable li.now { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 6px; padding-left: 6px; padding-right: 6px; }
-  .carousel-dots { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
-  .carousel-dots button {
-    width: 8px; height: 8px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
-    background: var(--card-border); transition: background .15s ease, transform .15s ease;
-  }
-  .carousel-dots button.active { background: #ec4899; transform: scale(1.25); }
+  .effie-row .t-time { flex: none; width: 84px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .effie-row .t-act { color: var(--text); }
+  .effie-row.break .t-act, .effie-row.break .t-time { color: var(--muted); font-style: italic; }
+  .effie-row.now { background: color-mix(in srgb, #ec4899 14%, transparent); }
+  /* The track holds today's rows twice; the shared ticker-scroll keyframe
+     translates -50% so the second copy loops seamlessly. */
+  .effie-ticker .ticker-track { animation: ticker-scroll 14s linear infinite; }
+  .effie-ticker .ticker-track:hover { animation-play-state: paused; }
 
   /* Mobile: prevent horizontal overflow from the 340px grid minimum and tight padding */
   @media (max-width: 480px) {
@@ -357,17 +345,11 @@
   <!-- Effie's Day -->
   <div class="card">
     <h2><span class="dot effie"></span>Effie's Day</h2>
-    <div class="sub">Year 2 weekly class timetable &middot; showing today</div>
+    <div class="sub">Year 2 weekly class timetable &middot; <span id="effie-day-label"></span> (today)</div>
 
-    <div class="carousel">
-      <button class="carousel-arrow" id="effie-prev" aria-label="Previous day">&#8249;</button>
-      <div class="carousel-view">
-        <div class="carousel-day" id="effie-day-label"></div>
-        <ul class="timetable" id="effie-timetable"></ul>
-      </div>
-      <button class="carousel-arrow" id="effie-next" aria-label="Next day">&#8250;</button>
+    <div class="ticker effie-ticker">
+      <div class="ticker-track" id="effie-ticker-track"></div>
     </div>
-    <div class="carousel-dots" id="effie-dots"></div>
   </div>
 
 </div>
@@ -623,7 +605,7 @@
     }
   });
 
-  // ---- Effie's Day: weekly timetable carousel (opens to today) ----
+  // ---- Effie's Day: today's timetable as a seamless vertical auto-scroll ticker ----
   const EFFIE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
   const EFFIE_TIMETABLE = {
     Monday: [
@@ -666,10 +648,7 @@
     ]
   };
   const effieDayLabel = document.getElementById('effie-day-label');
-  const effieTimetable = document.getElementById('effie-timetable');
-  const effieDots = document.getElementById('effie-dots');
-  let effieIdx = (new Date().getDay() + 6) % 7; // Sun=0..Sat=6 -> Mon=0..Sun=6
-  effieIdx = Math.min(effieIdx, 4);
+  const effieTrack = document.getElementById('effie-ticker-track');
 
   function effieNowMins() {
     const n = new Date();
@@ -680,32 +659,23 @@
     const toMin = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
     return effieNowMins() >= toMin(a) && effieNowMins() <= toMin(b);
   }
-  function renderEffie() {
-    const day = EFFIE_DAYS[effieIdx];
-    effieDayLabel.textContent = day;
-    effieTimetable.innerHTML = '';
+  function buildEffieRows(day) {
+    const frag = document.createDocumentFragment();
     EFFIE_TIMETABLE[day].forEach(([time, act]) => {
-      const li = document.createElement('li');
-      if (/break/i.test(act)) li.className = 'break';
-      else if (effieInSlot(time)) li.className = 'now';
-      li.innerHTML = `<span class="t-time">${time}</span><span class="t-act">${act}</span>`;
-      effieTimetable.appendChild(li);
+      const row = document.createElement('div');
+      row.className = 'effie-row' + (/break/i.test(act) ? ' break' : (effieInSlot(time) ? ' now' : ''));
+      row.innerHTML = `<span class="t-time">${time}</span><span class="t-act">${act}</span>`;
+      frag.appendChild(row);
     });
-    [...effieDots.children].forEach((d, i) => d.classList.toggle('active', i === effieIdx));
+    return frag;
   }
-  EFFIE_DAYS.forEach((d, i) => {
-    const b = document.createElement('button');
-    b.setAttribute('aria-label', d);
-    b.addEventListener('click', () => { effieIdx = i; renderEffie(); });
-    effieDots.appendChild(b);
-  });
-  document.getElementById('effie-prev').addEventListener('click', () => {
-    effieIdx = (effieIdx + 4) % 5; renderEffie();
-  });
-  document.getElementById('effie-next').addEventListener('click', () => {
-    effieIdx = (effieIdx + 1) % 5; renderEffie();
-  });
-  renderEffie();
+  // Opens to today (Mon=0..Fri=4); weekend shows Friday.
+  const effieIdx = Math.min((new Date().getDay() + 6) % 7, 4);
+  const effieDay = EFFIE_DAYS[effieIdx];
+  effieDayLabel.textContent = effieDay;
+  // Render the day's rows twice so the -50% keyframe loops seamlessly.
+  effieTrack.appendChild(buildEffieRows(effieDay));
+  effieTrack.appendChild(buildEffieRows(effieDay));
 
 </script>
 
