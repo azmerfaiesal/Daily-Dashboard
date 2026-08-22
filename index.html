@@ -258,6 +258,18 @@
      translates -50% so the second copy loops seamlessly. */
   .effie-ticker .ticker-track { animation: ticker-scroll 14s linear infinite; }
   .effie-ticker .ticker-track:hover { animation-play-state: paused; }
+  /* Day tabs */
+  .effie-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .effie-tabs button {
+    flex: 1; padding: 6px 0; border: 1px solid var(--card-border); background: var(--surface);
+    color: var(--muted); border-radius: 6px; font-size: 12px; cursor: pointer;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .effie-tabs button:hover { background: var(--hover); }
+  .effie-tabs button.active {
+    background: color-mix(in srgb, #ec4899 16%, transparent);
+    color: var(--text); border-color: #ec4899;
+  }
 
   /* Mobile: prevent horizontal overflow from the 340px grid minimum and tight padding */
   @media (max-width: 480px) {
@@ -345,7 +357,9 @@
   <!-- Effie's Day -->
   <div class="card">
     <h2><span class="dot effie"></span>Effie's Day</h2>
-    <div class="sub">Year 2 weekly class timetable &middot; <span id="effie-day-label"></span> (today)</div>
+    <div class="sub">Year 2 weekly class timetable</div>
+
+    <div class="effie-tabs" id="effie-tabs"></div>
 
     <div class="ticker effie-ticker">
       <div class="ticker-track" id="effie-ticker-track"></div>
@@ -647,7 +661,7 @@
       ['15:00–15:25', 'Golden Time']
     ]
   };
-  const effieDayLabel = document.getElementById('effie-day-label');
+  const effieTabsEl = document.getElementById('effie-tabs');
   const effieTrack = document.getElementById('effie-ticker-track');
 
   function effieNowMins() {
@@ -659,23 +673,38 @@
     const toMin = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
     return effieNowMins() >= toMin(a) && effieNowMins() <= toMin(b);
   }
-  function buildEffieRows(day) {
+  function buildEffieRows(day, highlightNow) {
     const frag = document.createDocumentFragment();
     EFFIE_TIMETABLE[day].forEach(([time, act]) => {
       const row = document.createElement('div');
-      row.className = 'effie-row' + (/break/i.test(act) ? ' break' : (effieInSlot(time) ? ' now' : ''));
+      const cls = 'effie-row' + (/break/i.test(act) ? ' break' : (highlightNow && effieInSlot(time) ? ' now' : ''));
+      row.className = cls;
       row.innerHTML = `<span class="t-time">${time}</span><span class="t-act">${act}</span>`;
       frag.appendChild(row);
     });
     return frag;
   }
   // Opens to today (Mon=0..Fri=4); weekend shows Friday.
-  const effieIdx = Math.min((new Date().getDay() + 6) % 7, 4);
-  const effieDay = EFFIE_DAYS[effieIdx];
-  effieDayLabel.textContent = effieDay;
-  // Render the day's rows twice so the -50% keyframe loops seamlessly.
-  effieTrack.appendChild(buildEffieRows(effieDay));
-  effieTrack.appendChild(buildEffieRows(effieDay));
+  let effieIdx = Math.min((new Date().getDay() + 6) % 7, 4);
+  const effieTodayIdx = effieIdx;
+
+  function renderEffie() {
+    const day = EFFIE_DAYS[effieIdx];
+    effieTrack.innerHTML = '';
+    const highlight = effieIdx === effieTodayIdx;
+    // Render the day's rows twice so the -50% keyframe loops seamlessly.
+    effieTrack.appendChild(buildEffieRows(day, highlight));
+    effieTrack.appendChild(buildEffieRows(day, highlight));
+    [...effieTabsEl.children].forEach((t, i) => t.classList.toggle('active', i === effieIdx));
+  }
+  EFFIE_DAYS.forEach((d, i) => {
+    const b = document.createElement('button');
+    b.textContent = d.slice(0, 3); // Mon / Tue / ...
+    b.setAttribute('aria-label', d);
+    b.addEventListener('click', () => { effieIdx = i; renderEffie(); });
+    effieTabsEl.appendChild(b);
+  });
+  renderEffie();
 
 </script>
 
