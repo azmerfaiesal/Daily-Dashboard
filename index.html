@@ -99,8 +99,9 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
     gap: 20px;
-    align-items: start;
   }
+  /* When compressed to the shortest card in its row, taller cards scroll internally. */
+  .card.row-compressed { overflow: auto; }
   .card {
     background: var(--card);
     border: 1px solid var(--card-border);
@@ -146,13 +147,12 @@
     border-radius: 8px;
     background: var(--bg);
     display: block;
-    min-height: 440px;
-    height: 56vh;
-    max-height: 720px;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
   }
-  @media (max-width: 480px) {
-    .clarity-frame { height: 46vh; min-height: 380px; }
-  }
+  /* Clarity card grows to fit its app when not compressed by a shorter row-mate. */
+  #clarity-card { display: flex; flex-direction: column; }
 
   .add-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
   .add-row input {
@@ -318,7 +318,7 @@
 <div class="grid" id="dashboard-content" style="display:none;">
 
   <!-- Clarity (full task manager, embedded live) -->
-  <div class="card">
+  <div class="card" id="clarity-card">
     <h2><span class="dot clarity"></span>Clarity</h2>
     <div class="sub">Your full Clarity task manager — same account, live sync. Tip: <b>N</b> to add, <b>&sol;</b> to search</div>
     <iframe
@@ -557,7 +557,7 @@
     });
     const clarityThemeObserver = new MutationObserver(pushClarityTheme);
     clarityThemeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    if (clarityFrame) clarityFrame.addEventListener('load', pushClarityTheme);
+    if (clarityFrame) clarityFrame.addEventListener('load', () => { pushClarityTheme(); compressRowsToShortest(); });
     pushClarityTheme();
   }
 
@@ -573,6 +573,31 @@
   const signoutBtn = document.getElementById('signout-btn');
   const authErrorEl = document.getElementById('auth-error');
 
+  // Compress every card in a grid row to the SHORTEST card's height.
+  // Taller cards (e.g. the Clarity iframe) get `overflow:auto` and scroll internally.
+  function compressRowsToShortest() {
+    const grid = document.getElementById('dashboard-content');
+    if (!grid || grid.style.display === 'none') return;
+    const cards = [...grid.querySelectorAll('.card')];
+    // Reset so we measure each card's natural height.
+    cards.forEach(c => { c.style.height = ''; c.classList.remove('row-compressed'); });
+    // Group cards by their vertical position (grid row).
+    const rows = {};
+    cards.forEach(c => {
+      const top = c.offsetTop;
+      (rows[top] = rows[top] || []).push(c);
+    });
+    Object.values(rows).forEach(group => {
+      const minH = Math.min(...group.map(c => c.offsetHeight));
+      group.forEach(c => {
+        c.style.height = minH + 'px';
+        if (c.offsetHeight > minH + 1) c.classList.add('row-compressed');
+        else c.classList.remove('row-compressed');
+      });
+    });
+  }
+  window.addEventListener('resize', compressRowsToShortest);
+
   async function onSignedIn(user) {
     currentUser = user;
     authGateEl.style.display = 'none';
@@ -583,6 +608,7 @@
       loadCareerTracker()
     ]);
     subscribeRealtime();
+    compressRowsToShortest();
   }
 
   function onSignedOut() {
