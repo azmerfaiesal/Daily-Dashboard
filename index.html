@@ -841,19 +841,31 @@
   function showOffline() {
     ['now', 'h2', 'h4'].forEach(k => {
       document.getElementById('w-' + k + '-icon').innerHTML = offlineIcon();
-      document.getElementById('w-' + k + '-label').textContent = k === 'now' ? 'NOW' : '';
+      document.getElementById('w-' + k + '-label').textContent = k === 'now' ? 'NOW' : (k === 'h2' ? '+2H' : '+4H');
       document.getElementById('w-' + k).setAttribute('aria-label', 'Weather unavailable');
     });
     document.getElementById('weather').hidden = false;
+  }
+  function renderCached() {
+    try {
+      const cached = JSON.parse(localStorage.getItem(WEATHER.cacheKey) || 'null');
+      if (cached && cached.slots) { renderWeather(cached.slots); return true; }
+    } catch (e) {}
+    return false;
   }
 
   async function loadWeather() {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER.lat}&longitude=${WEATHER.lon}`
       + `&current=weather_code&hourly=weather_code&timezone=${encodeURIComponent(WEATHER.tz)}&forecast_days=2`;
-    try {
+    const once = async () => {
       const res = await fetch(url);
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const d = await res.json();
+      return res.json();
+    };
+    try {
+      let d;
+      try { d = await once(); }
+      catch (e1) { d = await once(); } // one retry for transient network/CORS blips
       const curHour = hh(d.current.time);
       const i2 = nearestHour(d.hourly, (curHour + 2) % 24);
       const i4 = nearestHour(d.hourly, (curHour + 4) % 24);
@@ -866,13 +878,10 @@
       renderWeather(slots);
     } catch (e) {
       // Fall back to last good cache; otherwise show the offline icon.
-      try {
-        const cached = JSON.parse(localStorage.getItem(WEATHER.cacheKey) || 'null');
-        if (cached && cached.slots) { renderWeather(cached.slots); return; }
-      } catch (e2) {}
-      showOffline();
+      if (!renderCached()) showOffline();
     }
   }
+  renderCached();           // show last known forecast instantly, even before the fetch resolves
   loadWeather();
   setInterval(loadWeather, WEATHER.refreshMs);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadWeather(); });
