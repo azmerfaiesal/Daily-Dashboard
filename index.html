@@ -227,6 +227,11 @@
     width: 100%; background: var(--surface); border: 1px solid var(--card-border); border-radius: 6px;
     color: var(--text); padding: 8px 10px; font-size: 13px; resize: vertical; min-height: 50px; font-family: inherit;
   }
+  /* Career Improvement Tracker: tighter, fixed-height textarea rows (no trailing whitespace) */
+  #learning-log, #career-notes {
+    min-height: 34px; max-height: 34px; height: 34px; padding: 5px 9px;
+    font-size: 12px; line-height: 1.3; resize: none; overflow: auto;
+  }
 
   /* Personal */
   .quote-box {
@@ -330,7 +335,7 @@
     <textarea id="learning-log" placeholder="What did you learn today?"></textarea>
 
     <label class="field-label">Weekly Cyberjaya DBA Jobs</label>
-    <div class="sub" style="margin-bottom:8px;">Live via the <code>dba_jobs</code> table &middot; falls back to the 2026-08-03 snapshot until a feed is wired</div>
+    <div class="sub" style="margin-bottom:8px;">Live via the <code>dba_jobs</code> table &middot; refreshed by the Mon/Thu 09:00 job &middot; <span id="dba-count"></span> live</div>
     <div class="ticker">
       <div class="ticker-track" id="dba-ticker-track"></div>
     </div>
@@ -407,8 +412,8 @@
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
   }
 
-  // Live via the `dba_jobs` table (populated by a scheduled scraper). Until that feed exists,
-  // this falls back to the 2026-08-03 manual snapshot so the section is never empty.
+  // Live via the `dba_jobs` table (populated by the Mon/Thu 09:00 scraper).
+  // Falls back to the 2026-08-03 manual snapshot only if the table is empty or errors.
   const dbaJobsSnapshot = [
     { title: 'Lead Database Platform Engineer — Great Eastern', meta: 'Cyberjaya, On-site · Oracle/SQL Server/PostgreSQL/MySQL/DB2 · Lead/Principal · MYR 360,000–600,000/yr · Today' },
     { title: 'Lead, Database Administrator — Great Eastern', meta: 'Cyberjaya, On-site · Lead · MYR 180,000–240,000/yr · 7 days ago' },
@@ -423,6 +428,7 @@
   ];
   let dbaJobs = dbaJobsSnapshot.slice();
   const dbaTrackEl = document.getElementById('dba-ticker-track');
+  const dbaCountEl = document.getElementById('dba-count');
 
   function renderDbaJobs() {
     const itemsHtml = dbaJobs.map(j => `
@@ -434,15 +440,15 @@
     dbaTrackEl.style.animation = dbaJobs.length >= 4 ? '' : 'none';
     dbaTrackEl.innerHTML = dbaJobs.length
       ? itemsHtml + (dbaJobs.length >= 4 ? itemsHtml : '')
-      : '<div class="ticker-item"><div class="title">No DBA jobs loaded yet</div><div class="meta">Waiting on a feed — showing the 2026-08-03 snapshot for now.</div></div>';
+      : '<div class="ticker-item"><div class="title">No DBA jobs loaded yet</div><div class="meta">Feed not wired — showing the 2026-08-03 snapshot for now.</div></div>';
   }
   renderDbaJobs();
 
   // Pull live rows from Supabase when a feed populates `dba_jobs`; otherwise keep the snapshot.
   async function loadDbaJobs() {
     const { data, error } = await sb.from('dba_jobs')
-      .select('title, company, location, work_mode, salary, posted_date')
-      .order('posted_date', { ascending: false })
+      .select('title, company, location, work_mode, salary, posted_date, created_at')
+      .order('created_at', { ascending: false })
       .limit(10);
     if (!error && data && data.length) {
       // Normalize the table rows into the {title, meta} shape the ticker renders.
@@ -450,6 +456,7 @@
         title: j.title,
         meta: [j.company, j.location, j.work_mode, j.salary].filter(Boolean).join(' · ')
       }));
+      if (dbaCountEl) dbaCountEl.textContent = data.length;
       renderDbaJobs();
     }
   }
