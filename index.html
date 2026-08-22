@@ -355,14 +355,15 @@
   }
   textarea:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: var(--glow); }
   /* Career Improvement Tracker: tighter, fixed-height textarea rows (no trailing whitespace) */
-  #learning-log, #career-notes {
+  #learning-log {
     min-height: 36px; max-height: 36px; height: 36px; padding: 7px 11px;
     font-size: 12px; line-height: 1.35; resize: none; overflow: auto;
   }
   /* Career Improvement Tracker: compress the whole segment */
   #card-career .sub { margin-bottom: 8px; }
   #card-career label.field-label { margin: 12px 0 6px; }
-  #card-career .ticker { height: 104px; }
+  /* Roomier now that Notes is gone — about five postings visible at a time. */
+  #card-career .ticker { height: 248px; }
 
   /* ── Tickers ───────────────────────────────────────────────────── */
   /* Duration is set per-ticker in JS from the item count, so a 4-item and a 14-item
@@ -503,32 +504,26 @@
   }
   .effie-tabs button:focus-visible { outline: none; box-shadow: var(--glow); }
 
-  /* Weekly School Menu — horizontally scrollable table; today's column highlighted */
+  /* Weekly School Menu — same bottom-to-top ticker as the timetable above it.
+     Rows are multi-line, so it is paced slower than the row-count default. */
   .menu-sub { margin-top: 16px; margin-bottom: 0; }
-  .menu-scroll { overflow-x: auto; margin-top: 10px; -webkit-overflow-scrolling: touch; }
-  .menu-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .menu-table th, .menu-table td {
-    border: 1px solid var(--hairline); padding: 7px 9px; vertical-align: top; text-align: left;
+  .menu-ticker { height: 172px; margin-top: 10px; }
+  .menu-row {
+    display: flex; gap: 12px; align-items: baseline;
+    padding: 9px 13px; font-size: 12px;
+    border-bottom: 1px solid var(--hairline);
   }
-  .menu-table thead th {
-    font-family: var(--font-mono); font-size: 9px; font-weight: 500;
-    letter-spacing: 0.12em; text-transform: uppercase;
-    color: var(--faint); background: var(--surface); white-space: nowrap;
+  .menu-row .m-cat {
+    flex: none; width: 88px;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--faint);
   }
-  .menu-table tbody th {
-    font-family: var(--font-mono); font-size: 9px; font-weight: 500;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--faint); white-space: normal; width: 108px; background: var(--surface);
-  }
-  .menu-table td { color: var(--text); line-height: 1.5; }
-  .menu-table td .dish { display: block; }
-  .menu-table td.today { background: color-mix(in srgb, var(--effie-pink) 10%, transparent); }
-  .menu-table thead th.today {
-    background: color-mix(in srgb, var(--effie-pink) 16%, transparent);
-    color: var(--effie-pink);
-    border-color: color-mix(in srgb, var(--effie-pink) 45%, transparent);
-  }
-  .menu-table td.snack { color: var(--muted); }
+  .menu-row .m-dishes { color: var(--text); line-height: 1.5; }
+  .menu-row .dish { display: block; }
+  .menu-row.snack .m-dishes { color: var(--muted); }
+  /* Today's menu picks up the same pink as the timetable's live row. */
+  .menu-ticker.today { border-color: color-mix(in srgb, var(--effie-pink) 38%, transparent); }
+  .menu-ticker.today .menu-row .m-cat { color: var(--effie-pink); }
 
   /* ── Footer ────────────────────────────────────────────────────── */
   footer {
@@ -660,8 +655,6 @@
       <div class="ticker-track" id="dba-ticker-track"></div>
     </div>
 
-    <label class="field-label">Notes</label>
-    <textarea id="career-notes" placeholder="e.g. which posting to follow up on, interview prep needed..."></textarea>
   </div>
 
   <!-- Personal / Journaling -->
@@ -701,8 +694,8 @@
     </div>
 
     <div class="sub menu-sub">Weekly School Menu</div>
-    <div class="menu-scroll">
-      <table class="menu-table" id="effie-menu"></table>
+    <div class="ticker menu-ticker">
+      <div class="ticker-track" id="effie-menu"></div>
     </div>
   </div>
 
@@ -766,11 +759,12 @@
   // count so a 4-item and a 14-item feed read at the same speed instead of sharing one 18s loop.
   const TICKER_SECONDS_PER_ITEM = 2.8;
   const shouldLoop = count => !REDUCED && count >= 4;
-  function paceTicker(track, count) {
+  function paceTicker(track, count, secondsPerItem) {
     if (!track) return;
     if (shouldLoop(count)) {
       track.style.animation = '';
-      track.style.animationDuration = Math.max(10, count * TICKER_SECONDS_PER_ITEM).toFixed(1) + 's';
+      track.style.animationDuration =
+        Math.max(10, count * (secondsPerItem || TICKER_SECONDS_PER_ITEM)).toFixed(1) + 's';
     } else {
       track.style.animation = 'none';
     }
@@ -1032,17 +1026,14 @@
     await sb.from('career_tracker').upsert({
       user_id: currentUser.id,
       learning_log: document.getElementById('learning-log').value,
-      notes: document.getElementById('career-notes').value,
       updated_at: new Date().toISOString()
     });
   }, 700);
   document.getElementById('learning-log').addEventListener('input', saveCareerTracker);
-  document.getElementById('career-notes').addEventListener('input', saveCareerTracker);
 
   async function loadCareerTracker() {
     const { data } = await sb.from('career_tracker').select('*').maybeSingle();
     document.getElementById('learning-log').value = data?.learning_log || '';
-    document.getElementById('career-notes').value = data?.notes || '';
   }
 
   // ---- realtime: reflect changes made on another device immediately ----
@@ -1055,7 +1046,6 @@
         const row = payload.new;
         if (row) {
           document.getElementById('learning-log').value = row.learning_log || '';
-          document.getElementById('career-notes').value = row.notes || '';
         }
       }).subscribe();
 
@@ -1378,18 +1368,26 @@
   const effieMenuEl = document.getElementById('effie-menu');
   const effieMenuCats = ['snack', 'vegetarian', 'western', 'asian', 'dessert'];
 
+  // Each category is one ticker row. Six seconds per row rather than the 2.8s default,
+  // because a row can carry four dishes stacked vertically.
+  const MENU_SECONDS_PER_ROW = 6;
+
   function renderEffieMenu() {
     // Follows the active day tab: shows only that day's menu.
     const day = EFFIE_DAYS[effieIdx];
     const isToday = effieIdx === effieTodayIdx;
-    let html = `<thead><tr><th>Menu</th><th class="${isToday ? 'today' : ''}">${day}</th></tr></thead><tbody>`;
-    effieMenuCats.forEach(cat => {
-      const dishes = EFFIE_MENU[cat].days[day].map(x => `<span class="dish">${x}</span>`).join('');
-      const cls = (cat === 'snack' ? 'snack' : '') + (isToday ? ' today' : '');
-      html += `<tr><th>${EFFIE_MENU[cat].label}</th><td class="${cls.trim()}">${dishes}</td></tr>`;
-    });
-    html += '</tbody>';
-    effieMenuEl.innerHTML = html;
+    const html = effieMenuCats.map(cat => {
+      const dishes = EFFIE_MENU[cat].days[day]
+        .map(x => '<span class="dish">' + esc(x) + '</span>').join('');
+      return '<div class="menu-row' + (cat === 'snack' ? ' snack' : '') + '">' +
+               '<span class="m-cat">' + esc(EFFIE_MENU[cat].label) + '</span>' +
+               '<span class="m-dishes">' + dishes + '</span>' +
+             '</div>';
+    }).join('');
+    // Duplicated so the shared -50% keyframe loops seamlessly, same as every other ticker.
+    effieMenuEl.innerHTML = shouldLoop(effieMenuCats.length) ? html + html : html;
+    effieMenuEl.parentElement.classList.toggle('today', isToday);
+    paceTicker(effieMenuEl, effieMenuCats.length, MENU_SECONDS_PER_ROW);
   }
 
   // Initial render — after all Effie consts/functions are defined (avoids TDZ).
