@@ -293,6 +293,27 @@
     background: color-mix(in srgb, #ec4899 16%, transparent);
     color: var(--text); border-color: #ec4899;
   }
+  /* Weekly School Menu — horizontally scrollable table; today's column highlighted */
+  .menu-sub { margin-top: 14px; }
+  .menu-scroll { overflow-x: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; }
+  .menu-table { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 520px; }
+  .menu-table th, .menu-table td {
+    border: 1px solid var(--card-border); padding: 6px 8px; vertical-align: top; text-align: left;
+  }
+  .menu-table thead th {
+    color: var(--muted); font-weight: 600; font-size: 10px; letter-spacing: 0.04em;
+    text-transform: uppercase; background: var(--surface); white-space: nowrap;
+  }
+  .menu-table tbody th {
+    color: var(--muted); font-weight: 600; white-space: nowrap; width: 64px; background: var(--surface);
+  }
+  .menu-table td { color: var(--text); line-height: 1.45; }
+  .menu-table td .dish { display: block; }
+  .menu-table td.today { background: color-mix(in srgb, #ec4899 12%, transparent); }
+  .menu-table thead th.today {
+    background: color-mix(in srgb, #ec4899 20%, transparent); color: var(--text); border-color: #ec4899;
+  }
+  .menu-table td.snack { color: var(--muted); }
 
   /* Mobile: prevent horizontal overflow from the 340px grid minimum and tight padding */
   @media (max-width: 480px) {
@@ -410,6 +431,11 @@
 
     <div class="ticker effie-ticker">
       <div class="ticker-track" id="effie-ticker-track"></div>
+    </div>
+
+    <div class="sub menu-sub">Weekly School Menu</div>
+    <div class="menu-scroll">
+      <table class="menu-table" id="effie-menu"></table>
     </div>
   </div>
 
@@ -792,6 +818,75 @@
   });
   renderEffie();
 
+  // ---- Effie's Day: Weekly School Menu (reuses the same day tabs / today highlight) ----
+  const EFFIE_MENU = {
+    snack: {
+      label: 'Morning Snack',
+      days: { Monday: ['Banana'], Tuesday: ['Mini Doughnut'], Wednesday: ['Mini Doughnut'], Thursday: ['Apple Red'], Friday: ['Slice Cake'] }
+    },
+    vegetarian: {
+      label: 'Vegetarian',
+      days: {
+        Monday: ['White Rice', 'Beef Bimbimbap', 'Mashed Potato', 'Sauteed Vegetables'],
+        Tuesday: ['Vegetarian Fried Rice', 'Saute Stir Carrot', 'VG Mutton', 'Grill Pumpkin'],
+        Wednesday: ['Fried Mee Kong Poh', 'Fried Chicken Katsu', 'Sew Pak Choy Garlic', 'Fried Mushroom Tempura'],
+        Thursday: ['White Rice', 'Chicken Kong Poh', 'Sauteed Vegetables', 'Jap Bean Curd'],
+        Friday: ['Saute Vege Spaghetti', 'Braised Choy Yam Tom', 'Vegetarian Chicken', 'Mashed Potato']
+      }
+    },
+    western: {
+      label: 'Western Dishes',
+      days: {
+        Monday: ['Fettuccini Napolitane Sauce', 'Parsley Potato', 'VG Chicken', 'Saute Vegetable'],
+        Tuesday: ['Pilaf Rice', 'Fried Chicken Berempah', 'Dhal Curry', 'Fried Mixed Vegetable'],
+        Wednesday: ['White Rice', 'Beef Bimbimbap', 'Mashed Potato', 'Sauteed Vegetables'],
+        Thursday: ['Roast Beef With Rosemary Sauce', 'Baked Pumpkin Basil', 'Grill Mediterranean VG', 'Fettuccine Napolitane'],
+        Friday: ['Ghee Rice', 'Chicken Rendang', 'Acar Jelatah', 'Braised Fried Sew Pak Choy with Oyster Sauce']
+      }
+    },
+    asian: {
+      label: 'Asian Dishes',
+      days: {
+        Monday: ['Fried Mee Kong Poh', 'Fried Chicken Katsu', 'Sew Pak Choy Garlic', 'Fried Mushroom Tempura'],
+        Tuesday: ['Baked Macaroni', 'Breaded Fish Tartar Sauce', 'Grill Pumpkin', 'Grill Egg Plant Capsicum'],
+        Wednesday: ['Fettuccini Napolitane Sauce', 'Parsley Potato', 'VG Chicken', 'Saute Vegetable'],
+        Thursday: ['Fettuccini Napolitane Sauce', 'Saute Parsley Potato', 'VG Prawn', 'Grill Med Veg'],
+        Friday: ['Beef Bulgogi Korean', 'Mash Potato', 'Breaded Choytam Garlic', 'Saute VG Spaghetti']
+      }
+    },
+    dessert: {
+      label: 'Dessert',
+      days: {
+        Monday: ['Pineapple, Watermelon & Custard Pudding'],
+        Tuesday: ['Pear, Rockmelon & Agar Pelangi'],
+        Wednesday: ['Pineapple, Watermelon & Custard Pudding'],
+        Thursday: ['Pear, Watermelon & Pandan Cake'],
+        Friday: ['Apple Red, HoneyDew & Mango Pudding']
+      }
+    }
+  };
+  const effieMenuEl = document.getElementById('effie-menu');
+  const effieMenuCats = ['snack', 'vegetarian', 'western', 'asian', 'dessert'];
+
+  function renderEffieMenu() {
+    const today = EFFIE_DAYS[effieTodayIdx];
+    let html = '<thead><tr><th>Menu</th>';
+    EFFIE_DAYS.forEach(d => { html += `<th class="${d === today ? 'today' : ''}">${d.slice(0, 3)}</th>`; });
+    html += '</tr></thead><tbody>';
+    effieMenuCats.forEach(cat => {
+      html += `<tr><th>${EFFIE_MENU[cat].label}</th>`;
+      EFFIE_DAYS.forEach(d => {
+        const isToday = d === today;
+        const dishes = EFFIE_MENU[cat].days[d].map(x => `<span class="dish">${x}</span>`).join('');
+        const cls = (cat === 'snack' ? 'snack' : '') + (isToday ? ' today' : '');
+        html += `<td class="${cls.trim()}">${dishes}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody>';
+    effieMenuEl.innerHTML = html;
+  }
+  renderEffieMenu();
   // ---- Minimal monochrome weather strip (MET Norway, no API key) ----
   // Cyberjaya coordinates. MET returns UTC timestamps; we convert to
   // Asia/Kuala_Lumpur with toLocaleString (handles DST correctly).
