@@ -817,7 +817,6 @@
     b.addEventListener('click', () => { effieIdx = i; renderEffie(); });
     effieTabsEl.appendChild(b);
   });
-  renderEffie();
 
   // ---- Effie's Day: Weekly School Menu (reuses the same day tabs / today highlight) ----
   const EFFIE_MENU = {
@@ -882,6 +881,9 @@
     html += '</tbody>';
     effieMenuEl.innerHTML = html;
   }
+
+  // Initial render — after all Effie consts/functions are defined (avoids TDZ).
+  renderEffie();
 
   // ---- Minimal monochrome weather strip (MET Norway, no API key) ----
   // Cyberjaya coordinates. MET returns UTC timestamps; we convert to
