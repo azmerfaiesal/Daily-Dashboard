@@ -104,7 +104,6 @@
     fill: none; stroke-linecap: round; stroke-linejoin: round; }
   .w-label { font-size: 9px; letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase;
     font-variant-numeric: tabular-nums; }
-  .w-time { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
   @media (max-width: 480px) {
     .header-right { gap: 12px; }
     .weather { gap: 14px; }
@@ -311,18 +310,15 @@
     <div class="weather" id="weather" aria-label="Weather forecast" hidden>
       <div class="w-slot" id="w-now">
         <span class="w-icon" id="w-now-icon"></span>
-        <span class="w-label">NOW</span>
-        <span class="w-time" id="w-now-time"></span>
+        <span class="w-label" id="w-now-label">NOW</span>
       </div>
       <div class="w-slot" id="w-2h">
         <span class="w-icon" id="w-2h-icon"></span>
-        <span class="w-label">+2H</span>
-        <span class="w-time" id="w-2h-time"></span>
+        <span class="w-label" id="w-2h-label"></span>
       </div>
       <div class="w-slot" id="w-4h">
         <span class="w-icon" id="w-4h-icon"></span>
-        <span class="w-label">+4H</span>
-        <span class="w-time" id="w-4h-time"></span>
+        <span class="w-label" id="w-4h-label"></span>
       </div>
     </div>
     <div class="date" id="today"></div>
@@ -830,13 +826,14 @@
 
   function renderWeather(slots) {
     const labels = { now: 'Current weather', h2: 'Weather in 2 hours', h4: 'Weather in 4 hours' };
+    const labelText = { now: 'NOW', h2: fmtTime(slots.h2.time), h4: fmtTime(slots.h4.time) };
     ['now', 'h2', 'h4'].forEach(k => {
       const el = document.getElementById('w-' + k);
       const iconEl = document.getElementById('w-' + k + '-icon');
-      const timeEl = document.getElementById('w-' + k + '-time');
+      const labelEl = document.getElementById('w-' + k + '-label');
       const [name, svg] = wmoIcon(slots[k].code);
       iconEl.innerHTML = svg;
-      timeEl.textContent = fmtTime(slots[k].time);
+      labelEl.textContent = labelText[k];
       el.setAttribute('aria-label', labels[k] + ': ' + name);
     });
     document.getElementById('weather').hidden = false;
@@ -844,7 +841,7 @@
   function showOffline() {
     ['now', 'h2', 'h4'].forEach(k => {
       document.getElementById('w-' + k + '-icon').innerHTML = offlineIcon();
-      document.getElementById('w-' + k + '-time').textContent = '';
+      document.getElementById('w-' + k + '-label').textContent = k === 'now' ? 'NOW' : '';
       document.getElementById('w-' + k).setAttribute('aria-label', 'Weather unavailable');
     });
     document.getElementById('weather').hidden = false;
