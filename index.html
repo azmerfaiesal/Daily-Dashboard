@@ -773,16 +773,16 @@
   });
   renderEffie();
 
-  // ---- Minimal monochrome weather strip (Open-Meteo, no API key) ----
-  // Cyberjaya coordinates; timezone forced to Asia/Kuala_Lumpur so all
-  // timestamps come back as local wall-clock and need no DST math.
+  // ---- Minimal monochrome weather strip (MET Norway, no API key) ----
+  // Cyberjaya coordinates. MET returns UTC timestamps; we convert to
+  // Asia/Kuala_Lumpur with toLocaleString (handles DST correctly).
   const WEATHER = {
     lat: 2.9271, lon: 101.6386, tz: 'Asia/Kuala_Lumpur', cacheKey: 'weather_v1',
     refreshMs: 45 * 60 * 1000, endpoints: { now: 'w-now', h2: 'w-2h', h4: 'w-4h' }
   };
 
-  // WMO weather code -> { name (a11y), svg (Lucide-style, monochrome) }
-  function wmoIcon(code) {
+  // yr.no symbol_code -> { name (a11y), svg (Lucide-style, monochrome) }
+  function metSymbol(code) {
     const S = c => `<svg viewBox="0 0 24 24" role="img" aria-hidden="true">${c}</svg>`;
     const sun = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
     const cloud = '<path d="M17.5 19a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.6 1.6A4 4 0 0 0 6.5 19h11z"/>';
@@ -790,35 +790,49 @@
     const cloudDrizzle = cloud + '<path d="M8 20l-.5 1.5M12 20l-.5 1.5M16 20l-.5 1.5"/>';
     const bolt = '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>';
     const fog = '<path d="M4 9h16M4 13h16M4 17h12M6 21h12"/>';
+    const snow = cloud + '<path d="M8 20l-1 2M12 20l-1 2M16 20l-1 2" stroke-dasharray="2 2"/>';
     const m = {
-      0: ['clear sky', S(sun)], 1: ['mainly clear', S(sun + cloud)],
-      2: ['partly cloudy', S(sun + cloud)], 3: ['overcast', S(cloud)],
-      45: ['fog', S(fog)], 48: ['depositing rime fog', S(fog)],
-      51: ['light drizzle', S(cloudDrizzle)], 53: ['drizzle', S(cloudDrizzle)], 55: ['dense drizzle', S(cloudDrizzle)],
-      56: ['freezing drizzle', S(cloudDrizzle)], 57: ['freezing drizzle', S(cloudDrizzle)],
-      61: ['light rain', S(cloudRain)], 63: ['rain', S(cloudRain)], 65: ['heavy rain', S(cloudRain)],
-      66: ['freezing rain', S(cloudRain)], 67: ['freezing rain', S(cloudRain)],
-      71: ['light snow', S(cloudRain)], 73: ['snow', S(cloudRain)], 75: ['heavy snow', S(cloudRain)], 77: ['snow grains', S(cloudRain)],
-      80: ['rain showers', S(cloudRain)], 81: ['rain showers', S(cloudRain)], 82: ['violent rain showers', S(cloudRain)],
-      85: ['snow showers', S(cloudRain)], 86: ['snow showers', S(cloudRain)],
-      95: ['thunderstorm', S(cloud + bolt)], 96: ['thunderstorm with hail', S(cloud + bolt)], 99: ['thunderstorm with hail', S(cloud + bolt)]
+      clearsky: ['clear sky', S(sun)],
+      fair: ['fair', S(sun)],
+      partlycloudy: ['partly cloudy', S(sun + cloud)],
+      cloudy: ['cloudy', S(cloud)],
+      fog: ['fog', S(fog)],
+      rain: ['rain', S(cloudRain)],
+      lightrain: ['light rain', S(cloudDrizzle)],
+      heavyrain: ['heavy rain', S(cloudRain)],
+      lightrainshowers: ['light rain showers', S(cloudDrizzle)],
+      rainshowers: ['rain showers', S(cloudRain)],
+      heavyrainshowers: ['heavy rain showers', S(cloudRain)],
+      drizzle: ['drizzle', S(cloudDrizzle)],
+      sleet: ['sleet', S(snow)],
+      snow: ['snow', S(snow)],
+      lightsnowshowers: ['light snow showers', S(snow)],
+      snowshowers: ['snow showers', S(snow)],
+      thunder: ['thunderstorm', S(cloud + bolt)],
+      lightthunder: ['thunderstorm', S(cloud + bolt)],
+      heavythunder: ['thunderstorm', S(cloud + bolt)],
+      thunderstorm: ['thunderstorm', S(cloud + bolt)]
     };
-    return m[code] || ['unknown', S(cloud)];
+    // Symbol codes carry a _day / _night suffix; strip it for lookup.
+    const base = (code || '').replace(/_(day|night)$/, '');
+    return m[base] || ['unknown', S(cloud)];
   }
   function offlineIcon() {
     return '<svg viewBox="0 0 24 24" role="img" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 0 0 0-9 6 6 0 0 0-11.6 1.6A4 4 0 0 0 6.5 19h11z" stroke-dasharray="3 3"/></svg>';
   }
 
-  // Parse an Open-Meteo timestamp (already in Asia/Kuala_Lumpur) as LOCAL time.
-  function parseLocal(iso) { const [d, t] = iso.split('T'); const [Y, M, D] = d.split('-').map(Number); const [h, m] = t.split(':').map(Number); return new Date(Y, M - 1, D, h, m); }
-  function hh(iso) { const dt = parseLocal(iso); return (dt.getHours() % 24 + 24) % 24; }
-  function fmtTime(iso) { const dt = parseLocal(iso); return String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0'); }
-
-  // Pick the hourly slot whose hour is closest to targetHour (handles wrap/midnight).
-  function nearestHour(hourly, targetHour) {
+  // MET Norway returns UTC timestamps. Convert the hour to Asia/Kuala_Lumpur.
+  function klHour(iso) {
+    return Number(new Date(iso).toLocaleString('en-GB', { timeZone: WEATHER.tz, hour: '2-digit', hour12: false })); // 0..23
+  }
+  function fmtTime(iso) {
+    return new Date(iso).toLocaleString('en-GB', { timeZone: WEATHER.tz, hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  // Pick the timeseries index whose KL hour is closest to targetHour (handles wrap/midnight/DST).
+  function nearestSlot(series, targetHour) {
     let best = 0, bestDiff = 99;
-    hourly.time.forEach((iso, i) => {
-      let diff = Math.abs(((hh(iso) - targetHour + 36) % 24) - 12); // circular distance 0..12
+    series.forEach((s, i) => {
+      const diff = Math.abs(((s.klHour - targetHour + 36) % 24) - 12); // circular distance 0..12
       if (diff < bestDiff) { bestDiff = diff; best = i; }
     });
     return best;
@@ -831,7 +845,7 @@
       const el = document.getElementById('w-' + k);
       const iconEl = document.getElementById('w-' + k + '-icon');
       const labelEl = document.getElementById('w-' + k + '-label');
-      const [name, svg] = wmoIcon(slots[k].code);
+      const [name, svg] = metSymbol(slots[k].code);
       iconEl.innerHTML = svg;
       labelEl.textContent = labelText[k];
       el.setAttribute('aria-label', labels[k] + ': ' + name);
@@ -855,10 +869,9 @@
   }
 
   async function loadWeather() {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER.lat}&longitude=${WEATHER.lon}`
-      + `&current=weather_code&hourly=weather_code&timezone=${encodeURIComponent(WEATHER.tz)}&forecast_days=2`;
+    const url = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${WEATHER.lat}&lon=${WEATHER.lon}`;
     const once = async () => {
-      const res = await fetch(url);
+      const res = await fetch(url, { headers: { 'User-Agent': 'DailyDashboard/1.0 (azmerfaiesal@gmail.com)' } });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.json();
     };
@@ -866,13 +879,21 @@
       let d;
       try { d = await once(); }
       catch (e1) { d = await once(); } // one retry for transient network/CORS blips
-      const curHour = hh(d.current.time);
-      const i2 = nearestHour(d.hourly, (curHour + 2) % 24);
-      const i4 = nearestHour(d.hourly, (curHour + 4) % 24);
+      // Build a flat series with KL-local hour + symbol code for each UTC step.
+      const series = d.properties.timeseries.map(t => ({
+        iso: t.time,
+        klHour: klHour(t.time),
+        code: (t.data.next_1_hours && t.data.next_1_hours.summary.symbol_code)
+            || (t.data.next_6_hours && t.data.next_6_hours.summary.symbol_code) || 'cloudy'
+      }));
+      const curHour = klHour(series[0].iso); // MET's first step is the current hour
+      const iNow = 0;
+      const i2 = nearestSlot(series, (curHour + 2) % 24);
+      const i4 = nearestSlot(series, (curHour + 4) % 24);
       const slots = {
-        now: { code: d.current.weather_code, time: d.current.time },
-        h2:  { code: d.hourly.weather_code[i2], time: d.hourly.time[i2] },
-        h4:  { code: d.hourly.weather_code[i4], time: d.hourly.time[i4] }
+        now: { code: series[iNow].code, time: series[iNow].iso },
+        h2:  { code: series[i2].code, time: series[i2].iso },
+        h4:  { code: series[i4].code, time: series[i4].iso }
       };
       try { localStorage.setItem(WEATHER.cacheKey, JSON.stringify({ slots, t: Date.now() })); } catch (e) {}
       renderWeather(slots);
