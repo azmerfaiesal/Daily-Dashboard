@@ -796,9 +796,11 @@
     });
     return frag;
   }
-  // Opens to today (Mon=0..Fri=4); weekend shows Friday.
-  let effieIdx = Math.min((new Date().getDay() + 6) % 7, 4);
-  const effieTodayIdx = effieIdx;
+  // Opens to today (Mon=0..Fri=4); weekend shows Friday as a fallback display day.
+  // effieTodayIdx is the REAL current weekday only, so weekends never highlight a day as "today".
+  const effieRawDay = (new Date().getDay() + 6) % 7; // Mon=0 .. Sun=6
+  let effieIdx = Math.min(effieRawDay, 4);
+  const effieTodayIdx = effieRawDay < 5 ? effieRawDay : -1;
 
   function renderEffie() {
     const day = EFFIE_DAYS[effieIdx];
