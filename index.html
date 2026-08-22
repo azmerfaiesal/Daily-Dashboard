@@ -312,13 +312,13 @@
         <span class="w-icon" id="w-now-icon"></span>
         <span class="w-label" id="w-now-label">NOW</span>
       </div>
-      <div class="w-slot" id="w-2h">
-        <span class="w-icon" id="w-2h-icon"></span>
-        <span class="w-label" id="w-2h-label"></span>
+      <div class="w-slot" id="w-h2">
+        <span class="w-icon" id="w-h2-icon"></span>
+        <span class="w-label" id="w-h2-label"></span>
       </div>
-      <div class="w-slot" id="w-4h">
-        <span class="w-icon" id="w-4h-icon"></span>
-        <span class="w-label" id="w-4h-label"></span>
+      <div class="w-slot" id="w-h4">
+        <span class="w-icon" id="w-h4-icon"></span>
+        <span class="w-label" id="w-h4-label"></span>
       </div>
     </div>
     <div class="date" id="today"></div>
@@ -778,7 +778,7 @@
   // Asia/Kuala_Lumpur with toLocaleString (handles DST correctly).
   const WEATHER = {
     lat: 2.9271, lon: 101.6386, tz: 'Asia/Kuala_Lumpur', cacheKey: 'weather_v1',
-    refreshMs: 45 * 60 * 1000, endpoints: { now: 'w-now', h2: 'w-2h', h4: 'w-4h' }
+    refreshMs: 45 * 60 * 1000, endpoints: { now: 'w-now', h2: 'w-h2', h4: 'w-h4' }
   };
 
   // yr.no symbol_code -> { name (a11y), svg (Lucide-style, monochrome) }
