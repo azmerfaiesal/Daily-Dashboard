@@ -78,7 +78,10 @@ print(d["access_token"], d["user"]["id"])
 EVENTS="$(osascript -l JavaScript "$HERE/read-today-events.js")" \
   || die "could not read the calendar"
 case "$EVENTS" in
-  *no-calendar-access*) die "calendar access was denied — grant it in System Settings > Privacy & Security > Calendars" ;;
+  *'"reason":"timeout"'*)
+    die "calendar access prompt was not answered. Run this from Terminal while you are at the keyboard and click Allow, then the scheduled runs will inherit the grant." ;;
+  *no-calendar-access*)
+    die "calendar access denied — enable it in System Settings > Privacy & Security > Calendars (look for osascript or Terminal)" ;;
 esac
 
 TODAY="$(date +%F)"

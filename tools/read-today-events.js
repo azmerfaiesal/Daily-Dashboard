@@ -13,6 +13,10 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function dateStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
 function isoFrom(nsDate) { return new Date(nsDate.timeIntervalSince1970 * 1000).toISOString(); }
 
+// Returns 'granted' | 'denied' | 'timeout'. The distinction matters: under launchd
+// the very first run has to raise the macOS permission prompt, and if nobody is at the
+// keyboard it simply expires — which is a completely different problem from an
+// explicit denial, and needs a different fix.
 function requestAccess(store) {
   var done = false, granted = false;
   // macOS 14 replaced requestAccessToEntityType with requestFullAccessToEvents.
@@ -21,19 +25,22 @@ function requestAccess(store) {
   } else {
     store.requestAccessToEntityTypeCompletion($.EKEntityTypeEvent, function (g) { granted = g; done = true; });
   }
-  // The completion handler only fires while a run loop is spinning.
-  var deadline = $.NSDate.dateWithTimeIntervalSinceNow(30);
+  // The completion handler only fires while a run loop is spinning. The window is
+  // generous because the first run may be waiting on a human to click Allow.
+  var deadline = $.NSDate.dateWithTimeIntervalSinceNow(120);
   while (!done && $.NSDate.date.compare(deadline) < 0) {
     $.NSRunLoop.currentRunLoop.runModeBeforeDate($.NSDefaultRunLoopMode,
       $.NSDate.dateWithTimeIntervalSinceNow(0.1));
   }
-  return granted;
+  if (!done) return 'timeout';
+  return granted ? 'granted' : 'denied';
 }
 
 function run() {
   var store = $.EKEventStore.alloc.init;
-  if (!requestAccess(store)) {
-    return JSON.stringify({ error: 'no-calendar-access' });
+  var access = requestAccess(store);
+  if (access !== 'granted') {
+    return JSON.stringify({ error: 'no-calendar-access', reason: access });
   }
 
   var now = new Date();
