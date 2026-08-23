@@ -501,6 +501,11 @@
   .ticker:hover .ticker-track,
   .ticker:focus-within .ticker-track,
   .ticker.paused .ticker-track { animation-play-state: paused; }
+  /* An explicit click-to-resume has to outrank :hover. Without this the pointer still
+     sitting on the box re-pauses it the instant the class is removed, so the second
+     click looks like it did nothing. Cleared on mouseleave, in JS. */
+  .ticker.playing:hover .ticker-track,
+  .ticker.playing:focus-within .ticker-track { animation-play-state: running; }
   .ticker-item { padding: 9px 13px; font-size: 12px; border-bottom: 1px solid var(--hairline); }
   .ticker-item:last-child { border-bottom: none; }
   .ticker-item .title { font-weight: 500; font-size: 12.5px; letter-spacing: -0.005em; margin-bottom: 3px; }
@@ -988,7 +993,17 @@
   // reader chasing a moving row. Taps on an actual link still open the link.
   document.addEventListener('click', e => {
     const t = e.target.closest && e.target.closest('.ticker');
-    if (t && !e.target.closest('a')) t.classList.toggle('paused');
+    if (!t || e.target.closest('a')) return;
+    // Clicking a paused ticker marks it explicitly playing, which beats the :hover rule;
+    // otherwise the pointer resting on the box would immediately re-pause it.
+    const resuming = t.classList.contains('paused');
+    t.classList.toggle('paused', !resuming);
+    t.classList.toggle('playing', resuming);
+  });
+
+  // Once the pointer leaves, drop the override so plain hover-to-read works again.
+  document.querySelectorAll('.ticker').forEach(t => {
+    t.addEventListener('mouseleave', () => t.classList.remove('playing'));
   });
 
   // Row heights are equalised once at sign-in, but feeds, the weather strip and the Clarity
