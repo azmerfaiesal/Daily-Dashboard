@@ -89,10 +89,16 @@ TODAY="$(date +%F)"
 # ── 4. Upsert, then clear anything cancelled ─────────────────────────────────
 # Rows are stamped with user_id so RLS accepts them.
 PAYLOAD="$(USER_ID="$USER_ID" python3 -c '
-import json, os, sys
+import datetime, json, os, sys
 rows = json.load(sys.stdin)
+# synced_at must be written explicitly. Its column DEFAULT only fires on INSERT, so an
+# upsert that updates an unchanged event would keep the original timestamp — and the
+# dashboard would show the feed ageing and eventually going stale while the sync was
+# in fact running perfectly every 15 minutes.
+now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 for r in rows:
     r["user_id"] = os.environ["USER_ID"]
+    r["synced_at"] = now
 print(json.dumps(rows))
 ' <<<"$EVENTS")"
 
@@ -120,5 +126,11 @@ DEL="$SUPABASE_URL/rest/v1/calendar_events?user_id=eq.$USER_ID&event_date=eq.$TO
 curl -fsS -X DELETE "$DEL" \
   -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $TOKEN" \
   -H 'Prefer: return=minimal' >/dev/null || die "cleanup failed"
+
+# Past days are never read by the dashboard, and without this the table grows by a
+# row per event per day forever.
+curl -fsS -X DELETE "$SUPABASE_URL/rest/v1/calendar_events?user_id=eq.$USER_ID&event_date=lt.$TODAY" \
+  -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $TOKEN" \
+  -H 'Prefer: return=minimal' >/dev/null || die "pruning old days failed"
 
 echo "calendar-sync: $COUNT event(s) synced for $TODAY"
