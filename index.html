@@ -258,19 +258,21 @@
   .w-precip:empty { display: none; }
 
   /* ── Grid + cards ──────────────────────────────────────────────── */
+  /* Twelve columns so a card's width can be resized in meaningful steps; cards carry
+     an explicit height and `align-items: start` keeps them from stretching to the row. */
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: start;
     gap: 20px;
   }
-  /* When compressed to the shortest card in its row, taller cards scroll internally. */
-  .card.row-compressed { overflow: auto; }
   .card {
     position: relative;
     background: var(--card);
     border: 1px solid var(--card-border);
     border-radius: var(--radius);
     padding: 22px;
+    overflow: auto;
     backdrop-filter: blur(16px) saturate(130%);
     -webkit-backdrop-filter: blur(16px) saturate(130%);
   }
@@ -294,6 +296,53 @@
   .dot.clarity { background: var(--clarity-indigo); box-shadow: 0 0 9px var(--clarity-indigo); }
   .dot.effie { background: var(--effie-pink); box-shadow: 0 0 9px var(--effie-pink); }
   .card .sub { color: var(--muted); font-size: 12px; line-height: 1.5; margin-bottom: 16px; }
+
+  /* ── Layout editing ─────────────────────────────────────────────
+     Cards are reordered by changing their CSS `order`, never by moving them in the
+     DOM: relocating an <iframe> node reloads it, which would restart Clarity on
+     every drag step. The tradeoff is that DOM order no longer matches visual order. */
+  .grid > .card > h2 { cursor: grab; user-select: none; -webkit-user-select: none; }
+  .grid > .card > h2:focus-visible { outline: none; box-shadow: var(--glow); border-radius: 6px; }
+  /* Dot-grid grip, revealed on hover, so the heading reads as a handle. */
+  .grid > .card > h2::after {
+    content: ''; margin-left: auto; flex: none; width: 14px; height: 10px;
+    background-image: radial-gradient(currentColor 1px, transparent 1px);
+    background-size: 5px 5px; color: var(--muted);
+    opacity: 0; transition: opacity .15s ease;
+  }
+  .grid > .card:hover > h2::after,
+  .grid > .card > h2:focus-visible::after { opacity: .6; }
+
+  .resize-handle {
+    position: absolute; right: 5px; bottom: 5px; width: 18px; height: 18px; z-index: 3;
+    padding: 0; border: none; background: transparent; color: var(--muted);
+    cursor: nwse-resize; opacity: 0; transition: opacity .15s ease;
+    display: flex; align-items: flex-end; justify-content: flex-end;
+  }
+  .grid > .card:hover .resize-handle { opacity: .65; }
+  .resize-handle:hover, .resize-handle:focus-visible { opacity: 1; color: var(--accent); }
+  .resize-handle:focus-visible { outline: none; box-shadow: var(--glow); border-radius: 4px; }
+  .resize-handle svg {
+    width: 14px; height: 14px; display: block; stroke: currentColor; stroke-width: 1.7;
+    fill: none; stroke-linecap: round;
+  }
+
+  .card.dragging {
+    opacity: .5; z-index: 5;
+    outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px;
+  }
+  .card.resizing {
+    outline: 1px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px;
+  }
+  body.layout-dragging, body.layout-resizing { user-select: none; -webkit-user-select: none; }
+  body.layout-dragging { cursor: grabbing; }
+  body.layout-dragging .grid > .card > h2 { cursor: grabbing; }
+  body.layout-resizing { cursor: nwse-resize; }
+  /* An iframe eats pointer events aimed at the page, which would strand a drag the
+     moment the cursor crossed the Clarity panel. */
+  body.layout-dragging iframe, body.layout-resizing iframe { pointer-events: none; }
+
+  .bar-actions { display: flex; align-items: center; gap: 8px; }
   .card .sub code {
     font-family: var(--font-mono); font-size: 11px;
     color: var(--accent); background: var(--accent-dim);
@@ -545,6 +594,20 @@
     .effie-tabs button, .icon-btn, .data-btn, textarea, #auth-gate input { transition: none; }
   }
 
+  /* Below this width a hand-tuned desktop layout stops making sense, so one column is
+     forced and editing is switched off. !important deliberately overrides the inline
+     styles the layout engine writes — the saved layout is kept, just not applied here. */
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+    .grid > .card { grid-column: auto !important; height: auto !important; order: 0 !important; }
+    .resize-handle { display: none; }
+    .grid > .card > h2 { cursor: default; }
+    .grid > .card > h2::after { display: none; }
+    /* With cards at natural height and resizing off, the embedded app would otherwise
+       fall back to the 150px default iframe height and be unusable. */
+    .clarity-frame { min-height: 460px; }
+  }
+
   /* Mobile: prevent horizontal overflow from the grid minimum and tight padding */
   @media (max-width: 560px) {
     body { padding: 20px 16px 24px; }
@@ -607,7 +670,11 @@
 
 <div id="auth-bar">
   <span id="auth-status">Checking session…</span>
-  <button id="signout-btn" class="data-btn" style="display:none;">Sign out</button>
+  <span class="bar-actions">
+    <button id="reset-layout-btn" class="data-btn" type="button"
+            title="Restore the default card sizes and order">Reset layout</button>
+    <button id="signout-btn" class="data-btn" style="display:none;">Sign out</button>
+  </span>
 </div>
 
 <div id="auth-gate" class="card">
@@ -678,7 +745,7 @@
   </div>
 
   <!-- Effie's Day -->
-  <div class="card">
+  <div class="card" id="card-effie">
     <h2><span class="dot effie"></span>Effie's Day</h2>
     <div class="sub">Year 2 weekly class timetable</div>
 
@@ -704,7 +771,8 @@
 </div>
 
 <footer>
-  Synced live via Supabase &middot; tied to your signed-in account
+  Drag a card by its title to reorder &middot; drag its bottom-right corner to resize &middot;
+  layout saved on this device
 </footer>
 
 <script>
@@ -784,7 +852,7 @@
   let relayoutTimer;
   function scheduleRelayout() {
     clearTimeout(relayoutTimer);
-    relayoutTimer = setTimeout(() => compressRowsToShortest(), 120);
+    relayoutTimer = setTimeout(() => Layout.apply(), 120);
   }
 
   // ---- date, live clock, day-progress hairline ----
@@ -1106,30 +1174,214 @@
   const signoutBtn = document.getElementById('signout-btn');
   const authErrorEl = document.getElementById('auth-error');
 
-  // Compress every card in a grid row to the SHORTEST card's height.
-  // Taller cards (e.g. the Clarity iframe) get `overflow:auto` and scroll internally.
-  function compressRowsToShortest() {
+  // ---- layout: drag a card by its heading to reorder, drag its corner to resize ----
+  // Saved per device in localStorage rather than Supabase: a phone and a 27" display
+  // want different layouts, so syncing one across both would be a downgrade.
+  const Layout = (function () {
+    const KEY = 'dash_layout_v1';
+    const COLS = 12, MIN_SPAN = 3, MIN_H = 200, MAX_H = 1600, STEP_H = 40;
+    const DEFAULTS = {
+      'clarity-card':  { span: 4, h: 600 },
+      'card-career':   { span: 4, h: 600 },
+      'card-personal': { span: 4, h: 600 },
+      'card-effie':    { span: 4, h: 600 }
+    };
+    const DEFAULT_ORDER = Object.keys(DEFAULTS);
     const grid = document.getElementById('dashboard-content');
-    if (!grid || grid.style.display === 'none') return;
-    const cards = [...grid.querySelectorAll('.card')];
-    // Reset so we measure each card's natural height.
-    cards.forEach(c => { c.style.height = ''; c.classList.remove('row-compressed'); });
-    // Group cards by their vertical position (grid row).
-    const rows = {};
-    cards.forEach(c => {
-      const top = c.offsetTop;
-      (rows[top] = rows[top] || []).push(c);
-    });
-    Object.values(rows).forEach(group => {
-      const minH = Math.min(...group.map(c => c.offsetHeight));
-      group.forEach(c => {
-        c.style.height = minH + 'px';
-        if (c.offsetHeight > minH + 1) c.classList.add('row-compressed');
-        else c.classList.remove('row-compressed');
+    const compact = window.matchMedia('(max-width: 900px)');
+    const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+    const cards = () => [...grid.querySelectorAll(':scope > .card')];
+    // Visual order is CSS `order`, not DOM position (see the note in the stylesheet).
+    const ordered = () => cards().sort((a, b) => (+a.style.order || 0) - (+b.style.order || 0));
+    const spanOf = c => {
+      const m = /span\s+(\d+)/.exec(c.style.gridColumn);
+      return m ? +m[1] : ((DEFAULTS[c.id] && DEFAULTS[c.id].span) || 4);
+    };
+    const defFor = id => DEFAULTS[id] || { span: 4, h: 600 };
+
+    function read() {
+      try {
+        const st = JSON.parse(localStorage.getItem(KEY) || 'null');
+        if (st && st.v === 1 && Array.isArray(st.order)) return st;
+      } catch (e) { /* corrupt or unavailable — fall back to defaults */ }
+      return null;
+    }
+    function write() {
+      if (compact.matches) return; // never persist the forced one-column layout
+      const st = { v: 1, order: ordered().map(c => c.id), sizes: {} };
+      cards().forEach(c => {
+        st.sizes[c.id] = { span: spanOf(c), h: Math.round(c.getBoundingClientRect().height) };
       });
-    });
-  }
-  window.addEventListener('resize', compressRowsToShortest);
+      try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* private mode */ }
+    }
+
+    function place(order, sizes) {
+      const known = new Set(order);
+      // Any card missing from a saved layout (e.g. one added later) goes to the end.
+      const full = order.concat(cards().map(c => c.id).filter(id => !known.has(id)));
+      full.forEach((id, i) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const d = (sizes && sizes[id]) || defFor(id);
+        el.style.order = i;
+        el.style.gridColumn = 'span ' + clamp(d.span, MIN_SPAN, COLS);
+        el.style.height = clamp(d.h, MIN_H, MAX_H) + 'px';
+      });
+    }
+
+    function apply() {
+      if (!grid || grid.style.display === 'none') return;
+      if (compact.matches) return;      // the media query handles this case
+      if (dragEl || rz) return;         // don't fight an interaction in progress
+      const st = read();
+      place(st ? st.order : DEFAULT_ORDER, st ? st.sizes : DEFAULTS);
+    }
+
+    function reset() {
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      place(DEFAULT_ORDER, DEFAULTS);
+    }
+
+    // ---- reorder ----
+    let dragEl = null;
+    function cardUnder(x, y) {
+      return cards().find(c => {
+        if (c === dragEl) return false;
+        const r = c.getBoundingClientRect();
+        return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+      }) || null;
+    }
+    function moveDrag(e) {
+      if (!dragEl) return;
+      const t = cardUnder(e.clientX, e.clientY);
+      if (!t) return;
+      const list = ordered();
+      const from = list.indexOf(dragEl), to = list.indexOf(t);
+      if (from < 0 || to < 0 || from === to) return;
+      list.splice(to, 0, list.splice(from, 1)[0]);
+      list.forEach((c, i) => { c.style.order = i; });
+    }
+    function endDrag() {
+      if (!dragEl) return;
+      dragEl.classList.remove('dragging');
+      document.body.classList.remove('layout-dragging');
+      dragEl = null;
+      write();
+    }
+
+    // ---- resize ----
+    let rz = null;
+    function metrics() {
+      const gap = parseFloat(getComputedStyle(grid).columnGap) || 20;
+      return { gap, col: (grid.getBoundingClientRect().width - gap * (COLS - 1)) / COLS };
+    }
+    function moveResize(e) {
+      if (!rz) return;
+      const { gap, col } = metrics();
+      // Width snaps to whole columns; height is free within bounds.
+      const span = clamp(Math.round((rz.w + (e.clientX - rz.x) + gap) / (col + gap)), MIN_SPAN, COLS);
+      rz.card.style.gridColumn = 'span ' + span;
+      rz.card.style.height = clamp(rz.h + (e.clientY - rz.y), MIN_H, MAX_H) + 'px';
+    }
+    function endResize() {
+      if (!rz) return;
+      rz.card.classList.remove('resizing');
+      document.body.classList.remove('layout-resizing');
+      rz = null;
+      write();
+    }
+
+    function wire() {
+      cards().forEach(card => {
+        if (card.dataset.layoutReady) return;
+        card.dataset.layoutReady = '1';
+        const h2 = card.querySelector(':scope > h2');
+        const name = h2 ? h2.textContent.trim() : 'card';
+
+        if (h2) {
+          h2.tabIndex = 0;
+          h2.setAttribute('role', 'button');
+          h2.setAttribute('aria-label', name + ' — drag to reorder, or use the left and right arrow keys');
+          h2.addEventListener('pointerdown', e => {
+            if (compact.matches || e.button !== 0) return;
+            e.preventDefault();
+            dragEl = card;
+            card.classList.add('dragging');
+            document.body.classList.add('layout-dragging');
+            try { card.setPointerCapture(e.pointerId); } catch (err) {}
+          });
+          h2.addEventListener('keydown', e => {
+            if (compact.matches || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+            e.preventDefault();
+            const list = ordered();
+            const i = list.indexOf(card);
+            const j = e.key === 'ArrowLeft' ? i - 1 : i + 1;
+            if (j < 0 || j >= list.length) return;
+            list.splice(j, 0, list.splice(i, 1)[0]);
+            list.forEach((c, k) => { c.style.order = k; });
+            write();
+          });
+        }
+
+        const handle = document.createElement('button');
+        handle.type = 'button';
+        handle.className = 'resize-handle';
+        handle.title = 'Drag to resize — or focus and use the arrow keys';
+        handle.setAttribute('aria-label', 'Resize ' + name);
+        handle.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M15 5 5 15M15 10l-5 5"/></svg>';
+        handle.addEventListener('pointerdown', e => {
+          if (compact.matches || e.button !== 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const r = card.getBoundingClientRect();
+          rz = { card, x: e.clientX, y: e.clientY, w: r.width, h: r.height };
+          card.classList.add('resizing');
+          document.body.classList.add('layout-resizing');
+          try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+        });
+        handle.addEventListener('keydown', e => {
+          if (compact.matches) return;
+          const span = spanOf(card), h = card.getBoundingClientRect().height;
+          if (e.key === 'ArrowLeft') card.style.gridColumn = 'span ' + clamp(span - 1, MIN_SPAN, COLS);
+          else if (e.key === 'ArrowRight') card.style.gridColumn = 'span ' + clamp(span + 1, MIN_SPAN, COLS);
+          else if (e.key === 'ArrowUp') card.style.height = clamp(h - STEP_H, MIN_H, MAX_H) + 'px';
+          else if (e.key === 'ArrowDown') card.style.height = clamp(h + STEP_H, MIN_H, MAX_H) + 'px';
+          else return;
+          e.preventDefault();
+          write();
+        });
+        card.appendChild(handle);
+      });
+
+      // Pointer capture routes every move/up to the captured element, so listen wide.
+      document.addEventListener('pointermove', e => { moveDrag(e); moveResize(e); });
+      document.addEventListener('pointerup', () => { endDrag(); endResize(); });
+      document.addEventListener('pointercancel', () => { endDrag(); endResize(); });
+
+      const resetBtn = document.getElementById('reset-layout-btn');
+      if (resetBtn) resetBtn.addEventListener('click', reset);
+
+      // Column width changes with the viewport, and crossing 900px switches modes.
+      // A window `resize` event is NOT guaranteed when the page starts life in a
+      // background tab or a zero-width container — and at zero width the compact
+      // query matches, so apply() correctly defers and would then never be retried.
+      // Watching the grid's own width covers both: it fires once on observe (doing
+      // the initial apply) and again whenever the column width actually changes.
+      // Height is ignored, so the card sizing we do here cannot feed back into it.
+      let lastGridW = -1;
+      new ResizeObserver(entries => {
+        const w = Math.round(entries[0].contentRect.width);
+        if (w === lastGridW) return;
+        lastGridW = w;
+        scheduleRelayout();
+      }).observe(grid);
+      compact.addEventListener('change', () => scheduleRelayout());
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleRelayout(); });
+    }
+
+    return { apply, reset, wire };
+  })();
+  Layout.wire();
 
   async function onSignedIn(user) {
     currentUser = user;
@@ -1141,7 +1393,7 @@
       loadCareerTracker()
     ]);
     subscribeRealtime();
-    compressRowsToShortest();
+    Layout.apply();
   }
 
   function onSignedOut() {
