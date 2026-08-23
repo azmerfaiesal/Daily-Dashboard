@@ -38,13 +38,34 @@ PASSWORD="$(security find-generic-password -a "$ACCOUNT" -s "$KEYCHAIN_SERVICE" 
 # ── 2. Exchange them for an access token ─────────────────────────────────────
 # The password goes over stdin rather than argv or the environment, so it never
 # shows up in `ps` output.
-AUTH="$(ACCOUNT="$ACCOUNT" python3 -c '
+#
+# rstrip("\n") matters: the `<<<` herestring appends a newline, and sending
+# "password\n" is rejected as a bad credential with a bare HTTP 400.
+AUTH_JSON="$(ACCOUNT="$ACCOUNT" python3 -c '
 import json, os, sys
-print(json.dumps({"email": os.environ["ACCOUNT"], "password": sys.stdin.read()}))
-' <<<"$PASSWORD" | curl -fsS "$SUPABASE_URL/auth/v1/token?grant_type=password" \
-      -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' --data-binary @-)" \
-  || die "sign-in failed — check the stored password"
+print(json.dumps({"email": os.environ["ACCOUNT"], "password": sys.stdin.read().rstrip("\n")}))
+' <<<"$PASSWORD")"
 unset PASSWORD
+
+# Keep the body on failure so a wrong password is distinguishable from a bad request.
+RESP="$(printf '%s' "$AUTH_JSON" | curl -sS -w $'\n%{http_code}' \
+  "$SUPABASE_URL/auth/v1/token?grant_type=password" \
+  -H "apikey: $SUPABASE_KEY" -H 'Content-Type: application/json' --data-binary @-)"
+unset AUTH_JSON
+CODE="$(tail -n1 <<<"$RESP")"
+AUTH="$(sed '$d' <<<"$RESP")"
+
+if [ "$CODE" != "200" ]; then
+  REASON="$(python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get("error_description") or d.get("msg") or d.get("error") or "")
+except Exception:
+    print("")
+' <<<"$AUTH")"
+  die "sign-in failed (HTTP $CODE)${REASON:+: $REASON}"
+fi
 
 read -r TOKEN USER_ID <<<"$(python3 -c '
 import json, sys
