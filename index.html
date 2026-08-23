@@ -419,19 +419,19 @@
     padding: 1px 5px; border-radius: 4px;
   }
 
-  /* Clarity full-app embed */
-  .clarity-frame {
-    width: 100%;
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-    display: block;
-    flex: 1 1 auto;
-    min-height: 0;
-    height: auto;
+  /* Clarity + calendar: two read-only tickers stacked in one card. */
+  #clarity-card .ticker { height: 158px; }
+  .task-row .title { display: flex; align-items: baseline; gap: 7px; }
+  .chip.p-high { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); }
+  .chip.p-medium { border-color: color-mix(in srgb, var(--hob-amber) 55%, transparent); color: var(--hob-amber); }
+  .chip.p-low { border-color: var(--hairline); color: var(--muted); }
+  .meta .overdue { color: var(--danger); }
+  .meta .now-slot { color: var(--accent); }
+  /* All-day events have no clock time, so the slot keeps its width for alignment. */
+  .cal-row .t-when {
+    display: inline-block; min-width: 84px;
+    color: var(--faint); font-variant-numeric: tabular-nums;
   }
-  /* Clarity card grows to fit its app when not compressed by a shorter row-mate. */
-  #clarity-card { display: flex; flex-direction: column; }
 
   /* ── Auth gate ─────────────────────────────────────────────────── */
   .data-btn {
@@ -680,9 +680,6 @@
     .resize-handle { display: none; }
     .grid > .card > h2 { cursor: default; }
     .grid > .card > h2::after { display: none; }
-    /* With cards at natural height and resizing off, the embedded app would otherwise
-       fall back to the 150px default iframe height and be unusable. */
-    .clarity-frame { min-height: 460px; }
     /* Layout editing is a desktop feature, so its reset belongs with it — otherwise the
        button reads as a no-op here while silently discarding the desktop layout. */
     #set-layout-group { display: none !important; }
@@ -793,18 +790,25 @@
 
 <div class="grid" id="dashboard-content" style="display:none;">
 
-  <!-- Clarity (full task manager, embedded live) -->
+  <!-- Clarity: today's tasks and calendar, both read-only -->
   <div class="card" id="clarity-card">
     <h2><span class="dot clarity"></span>Clarity</h2>
-    <div class="sub">Full task manager, same account, live sync &middot; <code>N</code> to add, <code>&sol;</code> to search</div>
-    <iframe
-      id="clarity-frame"
-      class="clarity-frame"
-      src="https://azmerfaiesal.github.io/clarity/"
-      title="Clarity task manager"
-      loading="lazy"
-      allow="clipboard-write"
-    ></iframe>
+    <div class="sub">Today at a glance &middot; read-only</div>
+
+    <label class="field-label">Today&rsquo;s Tasks</label>
+    <div class="sub" style="margin-bottom:8px;" id="tasks-summary">Loading&hellip;</div>
+    <div class="ticker">
+      <div class="ticker-track" id="tasks-track"></div>
+    </div>
+
+    <label class="field-label">Today&rsquo;s Calendar</label>
+    <div class="sub feed-meta" style="margin-bottom:8px;">
+      <span class="stale-dot unknown" id="cal-dot"></span>
+      <span id="cal-freshness">Loading&hellip;</span>
+    </div>
+    <div class="ticker">
+      <div class="ticker-track" id="cal-track"></div>
+    </div>
   </div>
 
   <!-- Career Improvement Tracker -->
@@ -961,8 +965,16 @@
   const dayProgressEl = document.getElementById('day-progress');
   const DAY_START = 6 * 60, DAY_END = 22 * 60; // the hairline spans 06:00 -> 22:00
 
+  let lastSeenDate = null;
   function tickClock() {
     const now = new Date();
+    const d = localDateStr(now);
+    if (lastSeenDate && d !== lastSeenDate && currentUser) {
+      // Rolled past midnight on a tab that has been open all night.
+      loadTodayTasks();
+      loadCalendar();
+    }
+    lastSeenDate = d;
     // Rewritten each tick so the header rolls over correctly at midnight.
     todayEl.textContent = now.toLocaleDateString('en-MY', {
       weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
@@ -1211,6 +1223,175 @@
       loadTechNews();
     }).subscribe();
 
+  // ---- Clarity: today's tasks (read-only) ----
+  // Mirrors Clarity's own Today view exactly: not deleted, not completed, and a due
+  // date on or before today — so overdue items surface here rather than vanishing.
+  const tasksTrackEl = document.getElementById('tasks-track');
+  const tasksSummaryEl = document.getElementById('tasks-summary');
+  let clarityListNames = {};
+  let todayTasks = [];
+
+  function localDateStr(d) {
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  }
+
+  function taskRowHtml(t, today) {
+    const overdue = t.due_date < today;
+    const chips = [];
+    if (t.priority && t.priority !== 'none') chips.push({ text: t.priority, cls: 'p-' + t.priority });
+    const list = clarityListNames[t.list_id];
+    if (list) chips.push({ text: list, cls: '' });
+    return '<div class="ticker-item task-row">' +
+      '<div class="title">' + esc(t.title || 'Untitled task') + '</div>' +
+      '<div class="meta">' +
+        (overdue ? '<span class="overdue">Overdue &middot; ' + esc(t.due_date) + '</span>' : 'Due today') +
+      '</div>' +
+      (chips.length
+        ? '<div class="chips">' + chips.map(c =>
+            '<span class="chip ' + c.cls + '">' + esc(c.text) + '</span>').join('') + '</div>'
+        : '') +
+      '</div>';
+  }
+
+  function renderTodayTasks() {
+    const today = localDateStr(new Date());
+    if (!todayTasks.length) {
+      tasksTrackEl.innerHTML =
+        '<div class="ticker-item"><div class="title">Nothing due today</div>' +
+        '<div class="meta">No open Clarity tasks dated today or earlier.</div></div>';
+      paceTicker(tasksTrackEl, 0);
+      tasksSummaryEl.textContent = 'Nothing due \u00b7 live from Clarity';
+      scheduleRelayout();
+      return;
+    }
+    const overdue = todayTasks.filter(t => t.due_date < today).length;
+    tasksSummaryEl.textContent = todayTasks.length + ' open' +
+      (overdue ? ' \u00b7 ' + overdue + ' overdue' : '') + ' \u00b7 live from Clarity';
+    const html = todayTasks.map(t => taskRowHtml(t, today)).join('');
+    tasksTrackEl.innerHTML = shouldLoop(todayTasks.length) ? html + html : html;
+    paceTicker(tasksTrackEl, todayTasks.length, 3.4);
+    scheduleRelayout();
+  }
+
+  async function loadTodayTasks() {
+    if (!currentUser) return;
+    const today = localDateStr(new Date());
+    const [listsRes, tasksRes] = await Promise.all([
+      sb.from('clarity_lists').select('id, name').eq('user_id', currentUser.id),
+      sb.from('clarity_tasks')
+        .select('id, title, priority, due_date, list_id, favorite, sort_order')
+        .eq('user_id', currentUser.id)
+        .is('deleted_at', null)
+        .eq('completed', false)
+        .not('due_date', 'is', null)
+        .lte('due_date', today)
+        .order('due_date', { ascending: true })   // overdue floats to the top
+        .order('sort_order', { ascending: true })
+    ]);
+    clarityListNames = {};
+    (listsRes.data || []).forEach(l => { clarityListNames[l.id] = l.name; });
+    todayTasks = tasksRes.error ? [] : (tasksRes.data || []);
+    renderTodayTasks();
+  }
+
+  // ---- Today's Apple Calendar events (read-only) ----
+  // A static page cannot read the local calendar store, so a sync job on the Mac
+  // upserts today's events into `calendar_events` and this only ever reads them.
+  const calTrackEl = document.getElementById('cal-track');
+  const CAL_STALE_HOURS = 6;
+  let calEvents = [];
+
+  const fmtEventTime = iso =>
+    new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+  function calIsLive(ev, nowMs) {
+    if (ev.all_day) return false;
+    const start = new Date(ev.starts_at).getTime();
+    const end = ev.ends_at ? new Date(ev.ends_at).getTime() : start;
+    return nowMs >= start && nowMs <= end;
+  }
+
+  function calRowHtml(ev, nowMs) {
+    const when = ev.all_day
+      ? 'All day'
+      : fmtEventTime(ev.starts_at) + (ev.ends_at ? '\u2013' + fmtEventTime(ev.ends_at) : '');
+    const meta = [clean(ev.calendar_name), clean(ev.location)].filter(Boolean).map(esc).join(' &middot; ');
+    return '<div class="ticker-item cal-row">' +
+      '<div class="title">' +
+        '<span class="t-when' + (calIsLive(ev, nowMs) ? ' now-slot' : '') + '">' + esc(when) + '</span>' +
+        esc(ev.title || 'Untitled event') +
+      '</div>' +
+      (meta ? '<div class="meta">' + meta + '</div>' : '') +
+      '</div>';
+  }
+
+  function renderCalendar() {
+    if (!calEvents.length) {
+      calTrackEl.innerHTML =
+        '<div class="ticker-item"><div class="title">No events today</div>' +
+        '<div class="meta">Nothing synced for today.</div></div>';
+      paceTicker(calTrackEl, 0);
+      scheduleRelayout();
+      return;
+    }
+    const nowMs = Date.now();
+    const html = calEvents.map(ev => calRowHtml(ev, nowMs)).join('');
+    calTrackEl.innerHTML = shouldLoop(calEvents.length) ? html + html : html;
+    paceTicker(calTrackEl, calEvents.length, 3.4);
+    scheduleRelayout();
+  }
+
+  // Toggled in place rather than re-rendering, so the scroll animation never restarts.
+  function refreshCalNowClass() {
+    if (!calEvents.length) return;
+    const nowMs = Date.now();
+    [...calTrackEl.querySelectorAll('.cal-row')].forEach((row, i) => {
+      const ev = calEvents[i % calEvents.length];
+      const when = row.querySelector('.t-when');
+      if (ev && when) when.classList.toggle('now-slot', calIsLive(ev, nowMs));
+    });
+  }
+
+  async function loadCalendar() {
+    if (!currentUser) return;
+    const today = localDateStr(new Date());
+    // Two queries: today's events, plus the newest sync stamp across all rows. Without
+    // the second, "no rows for today" is indistinguishable from "the bridge is dead".
+    const [todayRes, lastRes] = await Promise.all([
+      sb.from('calendar_events')
+        .select('id, title, location, calendar_name, starts_at, ends_at, all_day')
+        .eq('user_id', currentUser.id)
+        .eq('event_date', today)
+        .order('all_day', { ascending: false })
+        .order('starts_at', { ascending: true }),
+      sb.from('calendar_events')
+        .select('synced_at')
+        .eq('user_id', currentUser.id)
+        .order('synced_at', { ascending: false })
+        .limit(1)
+    ]);
+
+    calEvents = todayRes.error ? [] : (todayRes.data || []);
+    renderCalendar();
+
+    const lastSync = (!lastRes.error && lastRes.data && lastRes.data[0]) ? lastRes.data[0].synced_at : null;
+    const dot = document.getElementById('cal-dot');
+    const label = document.getElementById('cal-freshness');
+    const ageH = lastSync ? (Date.now() - new Date(lastSync).getTime()) / 3.6e6 : null;
+    dot.className = 'stale-dot' + (ageH === null ? ' unknown' : (ageH > CAL_STALE_HOURS ? ' stale' : ''));
+    dot.title = ageH === null ? 'Never synced'
+      : (ageH > CAL_STALE_HOURS ? 'Sync is overdue' : 'Recently synced');
+    label.textContent = lastSync
+      ? (calEvents.length
+          ? calEvents.length + (calEvents.length === 1 ? ' event' : ' events')
+          : 'No events today') + ' \u00b7 synced ' + (relTime(lastSync) || 'unknown')
+      : 'Waiting for the first Apple Calendar sync';
+  }
+
+  setInterval(refreshCalNowClass, 60000);
+
   // ---- career tracker (single row per user, `career_tracker` table) ----
   const saveCareerTracker = debounce(async () => {
     if (!currentUser) return;
@@ -1240,48 +1421,16 @@
         }
       }).subscribe();
 
-    realtimeChannels = [careerCh];
+    const tasksCh = sb.channel('clarity-tasks-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clarity_tasks', filter: `user_id=eq.${uid}` },
+          () => loadTodayTasks()).subscribe();
+
+    const calCh = sb.channel('calendar-events-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events', filter: `user_id=eq.${uid}` },
+          () => loadCalendar()).subscribe();
+
+    realtimeChannels = [careerCh, tasksCh, calCh];
   }
-
-  // ---- Clarity iframe sync (wired once, at load) ----
-  // This used to live inside subscribeRealtime(), so each sign-in added another 'message'
-  // listener and MutationObserver that unsubscribeRealtime() never tore down.
-  // Clarity implements the handshake: it posts { type: 'clarity:ready' } and listens for
-  // { type: 'theme', value }.
-  (function wireClarity() {
-    const clarityFrame = document.getElementById('clarity-frame');
-    if (!clarityFrame) return;
-
-    // Clarity renders its own sign-out button; the dashboard has one in its settings panel,
-    // so hide the in-iframe duplicate.
-    const hideClaritySignout = () => {
-      try {
-        const doc = clarityFrame.contentDocument;
-        if (!doc) return;
-        doc.querySelectorAll('button').forEach(b => {
-          if (b.textContent.trim() === 'Sign out') b.style.display = 'none';
-        });
-      } catch (e) { /* cross-origin would throw; same-origin here so safe */ }
-    };
-    const pushClarityTheme = () => {
-      const t = document.documentElement.getAttribute('data-theme') || 'dark';
-      if (clarityFrame.contentWindow) {
-        clarityFrame.contentWindow.postMessage({ type: 'theme', value: t }, 'https://azmerfaiesal.github.io');
-      }
-    };
-    window.addEventListener('message', e => {
-      if (e.origin !== 'https://azmerfaiesal.github.io') return; // only trust the Clarity origin
-      if (e.data && e.data.type === 'clarity:ready') { pushClarityTheme(); hideClaritySignout(); }
-    });
-    new MutationObserver(pushClarityTheme)
-      .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    clarityFrame.addEventListener('load', () => {
-      pushClarityTheme();
-      hideClaritySignout();
-      scheduleRelayout();
-    });
-    pushClarityTheme();
-  })();
 
   function unsubscribeRealtime() {
     realtimeChannels.forEach(ch => sb.removeChannel(ch));
@@ -1514,7 +1663,9 @@
     accountGroup.hidden = false;
     layoutGroup.hidden = false;   // nothing to reset until the grid exists
     await Promise.all([
-      loadCareerTracker()
+      loadCareerTracker(),
+      loadTodayTasks(),
+      loadCalendar()
     ]);
     subscribeRealtime();
     Layout.apply();

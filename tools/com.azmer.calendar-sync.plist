@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Runs the Apple Calendar sync every 15 minutes.
+
+  Install:
+    mkdir -p ~/bin
+    cp tools/sync-apple-calendar.sh tools/read-today-events.js ~/bin/
+    chmod +x ~/bin/sync-apple-calendar.sh
+    ~/bin/sync-apple-calendar.sh            # once, to approve the calendar prompt
+    cp tools/com.azmer.calendar-sync.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.azmer.calendar-sync.plist
+
+  Copying to ~/bin matters: launchd running a script out of the Google Drive
+  folder is unreliable, because the file provider may not have materialised it
+  when the job fires.
+
+  Check on it:   launchctl list | grep calendar-sync
+  Watch output:  tail -f /tmp/calendar-sync.log
+  Stop:          launchctl unload ~/Library/LaunchAgents/com.azmer.calendar-sync.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.azmer.calendar-sync</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>"$HOME/bin/sync-apple-calendar.sh"</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>900</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/calendar-sync.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/calendar-sync.log</string>
+</dict>
+</plist>
