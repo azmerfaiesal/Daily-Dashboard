@@ -929,19 +929,59 @@
       : 'Nothing loaded yet \u00b7 ' + cadence;
   }
 
-  // Tickers loop by duplicating their rows and translating -50%. Pace the animation by row
-  // count so a 4-item and a 14-item feed read at the same speed instead of sharing one 18s loop.
-  const TICKER_SECONDS_PER_ITEM = 2.8;
-  const shouldLoop = count => !REDUCED && count >= 4;
-  function paceTicker(track, count, secondsPerItem) {
+  // Tickers loop by rendering their rows twice and translating -50%. Whether to loop at all
+  // is decided by MEASURING: if the rows already fit their box there is nothing to scroll.
+  //
+  // The old rule counted items (>= 4 scrolls). That was wrong, because row height varies a
+  // lot between feeds — a Clarity task row carries a title, a due line and chips, roughly
+  // twice a news row. Three task rows overflowed a 158px box while the count said "don't
+  // loop", so the overflow was silently clipped and the ticker looked frozen.
+  //
+  // Speed is pixels-per-second rather than seconds-per-item, so every ticker reads at the
+  // same pace whatever its rows look like.
+  const PX_PER_SECOND = 16;
+  const tickerState = new WeakMap();
+
+  function fitTicker(track, itemsHtml) {
     if (!track) return;
-    if (shouldLoop(count)) {
-      track.style.animation = '';
-      track.style.animationDuration =
-        Math.max(10, count * (secondsPerItem || TICKER_SECONDS_PER_ITEM)).toFixed(1) + 's';
-    } else {
-      track.style.animation = 'none';
-    }
+    tickerState.set(track, { html: itemsHtml, key: null });
+    applyTickerFit(track);
+  }
+
+  function applyTickerFit(track) {
+    const st = tickerState.get(track);
+    if (!st) return;
+    const box = track.parentElement;
+    const boxH = box ? box.clientHeight : 0;
+    if (!boxH) return;   // hidden or not laid out yet — refitTickers() retries once it is
+
+    // Rebuild only when the content or the box actually changed, otherwise every relayout
+    // would restart the animation and the tickers would judder in place.
+    //
+    // Width belongs in the key as much as height: row height depends on how much the text
+    // wraps, so a measurement taken while the card was still mid-layout leaves the duration
+    // computed from stale, too-tall rows and the ticker crawls at half speed.
+    const key = st.html + '|' + box.clientWidth + 'x' + boxH;
+    if (st.key === key) return;
+    st.key = key;
+
+    track.style.animation = 'none';
+    track.style.animationDuration = '';
+    track.innerHTML = st.html;
+    if (REDUCED) return;                  // plain scrollable list instead
+
+    const contentH = track.scrollHeight;
+    if (contentH <= boxH + 1) return;     // fits, so leave it still
+
+    track.innerHTML = st.html + st.html;  // second copy feeds the -50% keyframe
+    track.style.animation = '';
+    track.style.animationDuration = Math.max(10, contentH / PX_PER_SECOND).toFixed(1) + 's';
+  }
+
+  // Re-measure every ticker: cards become visible at sign-in and can be resized by hand,
+  // and both change whether the rows still fit.
+  function refitTickers() {
+    document.querySelectorAll('.ticker-track').forEach(applyTickerFit);
   }
 
   // Touch devices never fire :hover, so tapping a ticker freezes it instead of leaving the
@@ -956,7 +996,7 @@
   let relayoutTimer;
   function scheduleRelayout() {
     clearTimeout(relayoutTimer);
-    relayoutTimer = setTimeout(() => Layout.apply(), 120);
+    relayoutTimer = setTimeout(() => { Layout.apply(); refitTickers(); }, 120);
   }
 
   // ---- date, live clock, day-progress hairline ----
@@ -1127,16 +1167,13 @@
 
   function renderDbaJobs() {
     if (!dbaJobs.length) {
-      dbaTrackEl.innerHTML =
+      fitTicker(dbaTrackEl,
         '<div class="ticker-item"><div class="title">No DBA jobs loaded yet</div>' +
-        '<div class="meta">Waiting on the Mon/Thu 09:00 scrape, or check your connection.</div></div>';
-      paceTicker(dbaTrackEl, 0);
+        '<div class="meta">Waiting on the Mon/Thu 09:00 scrape, or check your connection.</div></div>');
       scheduleRelayout();
       return;
     }
-    const html = dbaJobs.map(jobRowHtml).join('');
-    dbaTrackEl.innerHTML = shouldLoop(dbaJobs.length) ? html + html : html;
-    paceTicker(dbaTrackEl, dbaJobs.length);
+    fitTicker(dbaTrackEl, dbaJobs.map(jobRowHtml).join(''));
     scheduleRelayout();
   }
   renderDbaJobs();
@@ -1186,16 +1223,13 @@
 
   function renderTechNews() {
     if (!techNews.length) {
-      techNewsTrackEl.innerHTML =
+      fitTicker(techNewsTrackEl,
         '<div class="ticker-item"><div class="title">No news loaded yet</div>' +
-        '<div class="meta">Waiting on the daily 8:08am refresh, or check your connection.</div></div>';
-      paceTicker(techNewsTrackEl, 0);
+        '<div class="meta">Waiting on the daily 8:08am refresh, or check your connection.</div></div>');
       scheduleRelayout();
       return;
     }
-    const html = techNews.map(newsRowHtml).join('');
-    techNewsTrackEl.innerHTML = shouldLoop(techNews.length) ? html + html : html;
-    paceTicker(techNewsTrackEl, techNews.length);
+    fitTicker(techNewsTrackEl, techNews.map(newsRowHtml).join(''));
     scheduleRelayout();
   }
   renderTechNews();
@@ -1258,10 +1292,9 @@
   function renderTodayTasks() {
     const today = localDateStr(new Date());
     if (!todayTasks.length) {
-      tasksTrackEl.innerHTML =
+      fitTicker(tasksTrackEl,
         '<div class="ticker-item"><div class="title">Nothing due today</div>' +
-        '<div class="meta">No open Clarity tasks dated today or earlier.</div></div>';
-      paceTicker(tasksTrackEl, 0);
+        '<div class="meta">No open Clarity tasks dated today or earlier.</div></div>');
       tasksSummaryEl.textContent = 'Nothing due \u00b7 live from Clarity';
       scheduleRelayout();
       return;
@@ -1269,9 +1302,7 @@
     const overdue = todayTasks.filter(t => t.due_date < today).length;
     tasksSummaryEl.textContent = todayTasks.length + ' open' +
       (overdue ? ' \u00b7 ' + overdue + ' overdue' : '') + ' \u00b7 live from Clarity';
-    const html = todayTasks.map(t => taskRowHtml(t, today)).join('');
-    tasksTrackEl.innerHTML = shouldLoop(todayTasks.length) ? html + html : html;
-    paceTicker(tasksTrackEl, todayTasks.length, 3.4);
+    fitTicker(tasksTrackEl, todayTasks.map(t => taskRowHtml(t, today)).join(''));
     scheduleRelayout();
   }
 
@@ -1329,17 +1360,14 @@
 
   function renderCalendar() {
     if (!calEvents.length) {
-      calTrackEl.innerHTML =
+      fitTicker(calTrackEl,
         '<div class="ticker-item"><div class="title">No events today</div>' +
-        '<div class="meta">Nothing synced for today.</div></div>';
-      paceTicker(calTrackEl, 0);
+        '<div class="meta">Nothing synced for today.</div></div>');
       scheduleRelayout();
       return;
     }
     const nowMs = Date.now();
-    const html = calEvents.map(ev => calRowHtml(ev, nowMs)).join('');
-    calTrackEl.innerHTML = shouldLoop(calEvents.length) ? html + html : html;
-    paceTicker(calTrackEl, calEvents.length, 3.4);
+    fitTicker(calTrackEl, calEvents.map(ev => calRowHtml(ev, nowMs)).join(''));
     scheduleRelayout();
   }
 
@@ -1539,6 +1567,7 @@
       document.body.classList.remove('layout-dragging');
       dragEl = null;
       write();
+      scheduleRelayout();
     }
 
     // ---- resize ----
@@ -1561,6 +1590,7 @@
       document.body.classList.remove('layout-resizing');
       rz = null;
       write();
+      scheduleRelayout();   // the box changed, so the rows may now fit (or stop fitting)
     }
 
     function wire() {
@@ -1774,15 +1804,14 @@
     return effieNowMins() >= toMin(a) && effieNowMins() <= toMin(b);
   }
   function buildEffieRows(day, highlightNow) {
-    const frag = document.createDocumentFragment();
-    EFFIE_TIMETABLE[day].forEach(([time, act]) => {
-      const row = document.createElement('div');
-      const cls = 'effie-row' + (/break/i.test(act) ? ' break' : (highlightNow && effieInSlot(time) ? ' now' : ''));
-      row.className = cls;
-      row.innerHTML = `<span class="t-time">${time}</span><span class="t-act">${act}</span>`;
-      frag.appendChild(row);
-    });
-    return frag;
+    return EFFIE_TIMETABLE[day].map(([time, act]) => {
+      const cls = 'effie-row' +
+        (/break/i.test(act) ? ' break' : (highlightNow && effieInSlot(time) ? ' now' : ''));
+      return '<div class="' + cls + '">' +
+        '<span class="t-time">' + esc(time) + '</span>' +
+        '<span class="t-act">' + esc(act) + '</span>' +
+      '</div>';
+    }).join('');
   }
   // Opens to today (Mon=0..Fri=4); weekend shows Friday as a fallback display day.
   // effieTodayIdx is the REAL current weekday only, so weekends never highlight a day as "today".
@@ -1792,13 +1821,8 @@
 
   function renderEffie() {
     const day = EFFIE_DAYS[effieIdx];
-    const slots = EFFIE_TIMETABLE[day];
-    effieTrack.innerHTML = '';
     const highlight = effieIdx === effieTodayIdx;
-    // Render the day's rows twice so the -50% keyframe loops seamlessly.
-    effieTrack.appendChild(buildEffieRows(day, highlight));
-    if (shouldLoop(slots.length)) effieTrack.appendChild(buildEffieRows(day, highlight));
-    paceTicker(effieTrack, slots.length);
+    fitTicker(effieTrack, buildEffieRows(day, highlight));
     [...effieTabsEl.children].forEach((t, i) => t.classList.toggle('active', i === effieIdx));
     renderEffieMenu(); // menu follows the active day tab
     scheduleRelayout();
@@ -1899,10 +1923,6 @@
   const effieMenuEl = document.getElementById('effie-menu');
   const effieMenuCats = ['snack', 'vegetarian', 'western', 'asian', 'dessert'];
 
-  // Each category is one ticker row. Six seconds per row rather than the 2.8s default,
-  // because a row can carry four dishes stacked vertically.
-  const MENU_SECONDS_PER_ROW = 6;
-
   function renderEffieMenu() {
     // Follows the active day tab: shows only that day's menu.
     const day = EFFIE_DAYS[effieIdx];
@@ -1915,10 +1935,8 @@
                '<span class="m-dishes">' + dishes + '</span>' +
              '</div>';
     }).join('');
-    // Duplicated so the shared -50% keyframe loops seamlessly, same as every other ticker.
-    effieMenuEl.innerHTML = shouldLoop(effieMenuCats.length) ? html + html : html;
     effieMenuEl.parentElement.classList.toggle('today', isToday);
-    paceTicker(effieMenuEl, effieMenuCats.length, MENU_SECONDS_PER_ROW);
+    fitTicker(effieMenuEl, html);
   }
 
   // Initial render — after all Effie consts/functions are defined (avoids TDZ).
