@@ -179,15 +179,23 @@
   }
 
   /* ── Header ────────────────────────────────────────────────────── */
+  /* Three stacked full-width rows: title, then date/clock opposite the settings
+     gear, then the weather strip left-aligned under the date. Full width is what
+     makes "left" and "right" meaningful on the middle row. */
   header {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    flex-wrap: wrap;
-    gap: 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
     margin-bottom: 30px;
     padding-bottom: 18px;
     border-bottom: 1px solid var(--hairline);
+  }
+  .header-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
   }
   header h1 {
     margin: 0;
@@ -206,9 +214,8 @@
     box-shadow: 0 0 12px var(--accent);
     flex: none;
   }
-  .header-right { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
   header .date {
-    display: flex; align-items: center; gap: 12px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     font-family: var(--font-mono);
     font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
     color: var(--muted);
@@ -343,8 +350,8 @@
   body.layout-dragging iframe, body.layout-resizing iframe { pointer-events: none; }
 
   /* ── Settings popover ───────────────────────────────────────────
-     Anchored under the gear. It sits inside header .date, which is uppercase
-     mono — so type properties are reset here rather than inherited. */
+     Anchored under the gear at the right edge of the header's middle row. Type is
+     set explicitly so it can never inherit the header's uppercase mono. */
   .settings-wrap { position: relative; display: inline-flex; }
   .settings-panel {
     position: absolute; top: calc(100% + 10px); right: 0; z-index: 80;
@@ -648,7 +655,6 @@
     .grid { grid-template-columns: 1fr; gap: 16px; }
     .card { padding: 18px; }
     header { align-items: flex-start; gap: 12px; }
-    .header-right { gap: 14px; width: 100%; justify-content: space-between; }
     .weather { gap: 13px; }
     .w-slot { min-width: 30px; }
     #auth-gate { margin-top: 4vh; }
@@ -661,68 +667,73 @@
 
 <header>
   <h1>Daily Dashboard</h1>
-  <div class="header-right">
-    <div class="weather" id="weather" aria-label="Weather forecast" hidden>
-      <div class="w-slot" id="w-now">
-        <span class="w-icon" id="w-now-icon"></span>
-        <span class="w-temp" id="w-now-temp"></span>
-        <span class="w-label" id="w-now-label">NOW</span>
-        <span class="w-precip" id="w-now-precip"></span>
-      </div>
-      <div class="w-slot" id="w-h2">
-        <span class="w-icon" id="w-h2-icon"></span>
-        <span class="w-temp" id="w-h2-temp"></span>
-        <span class="w-label" id="w-h2-label"></span>
-        <span class="w-precip" id="w-h2-precip"></span>
-      </div>
-      <div class="w-slot" id="w-h4">
-        <span class="w-icon" id="w-h4-icon"></span>
-        <span class="w-temp" id="w-h4-temp"></span>
-        <span class="w-label" id="w-h4-label"></span>
-        <span class="w-precip" id="w-h4-precip"></span>
-      </div>
-      <div class="w-slot" id="w-h6">
-        <span class="w-icon" id="w-h6-icon"></span>
-        <span class="w-temp" id="w-h6-temp"></span>
-        <span class="w-label" id="w-h6-label"></span>
-        <span class="w-precip" id="w-h6-precip"></span>
-      </div>
-      <div class="w-slot" id="w-h8">
-        <span class="w-icon" id="w-h8-icon"></span>
-        <span class="w-temp" id="w-h8-temp"></span>
-        <span class="w-label" id="w-h8-label"></span>
-        <span class="w-precip" id="w-h8-precip"></span>
-      </div>
-    </div>
+
+  <!-- Date and clock on the left, settings on the right. -->
+  <div class="header-meta">
     <div class="date">
       <span id="today"></span>
       <span class="clock" id="clock" aria-label="Current time"></span>
-      <span class="settings-wrap">
-        <button id="settings-btn" class="icon-btn" type="button" title="Settings" aria-label="Settings"
-                aria-haspopup="dialog" aria-expanded="false" aria-controls="settings-panel">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.9 14.2a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3.4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3.4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-        </button>
-        <div id="settings-panel" class="settings-panel" role="dialog" aria-label="Settings" hidden>
-          <div class="set-group">
-            <div class="set-label">Theme</div>
-            <div class="seg" role="radiogroup" aria-label="Theme">
-              <button type="button" class="seg-btn" role="radio" data-theme-mode="system" aria-checked="true">System</button>
-              <button type="button" class="seg-btn" role="radio" data-theme-mode="light" aria-checked="false">Light</button>
-              <button type="button" class="seg-btn" role="radio" data-theme-mode="dark" aria-checked="false">Dark</button>
-            </div>
-          </div>
-          <div class="set-group" id="set-layout-group" hidden>
-            <div class="set-label">Layout</div>
-            <button id="reset-layout-btn" class="data-btn set-full" type="button"
-                    title="Restore the default card sizes and order">Reset layout</button>
-          </div>
-          <div class="set-group" id="set-account-group" hidden>
-            <div class="set-label">Account</div>
-            <div class="set-account" id="settings-account">Not signed in</div>
-            <button id="signout-btn" class="data-btn set-full" type="button">Sign out</button>
+    </div>
+
+    <span class="settings-wrap">
+      <button id="settings-btn" class="icon-btn" type="button" title="Settings" aria-label="Settings"
+              aria-haspopup="dialog" aria-expanded="false" aria-controls="settings-panel">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.9 14.2a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3.4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3.4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+      <div id="settings-panel" class="settings-panel" role="dialog" aria-label="Settings" hidden>
+        <div class="set-group">
+          <div class="set-label">Theme</div>
+          <div class="seg" role="radiogroup" aria-label="Theme">
+            <button type="button" class="seg-btn" role="radio" data-theme-mode="system" aria-checked="true">System</button>
+            <button type="button" class="seg-btn" role="radio" data-theme-mode="light" aria-checked="false">Light</button>
+            <button type="button" class="seg-btn" role="radio" data-theme-mode="dark" aria-checked="false">Dark</button>
           </div>
         </div>
-      </span>
+        <div class="set-group" id="set-layout-group" hidden>
+          <div class="set-label">Layout</div>
+          <button id="reset-layout-btn" class="data-btn set-full" type="button"
+                  title="Restore the default card sizes and order">Reset layout</button>
+        </div>
+        <div class="set-group" id="set-account-group" hidden>
+          <div class="set-label">Account</div>
+          <div class="set-account" id="settings-account">Not signed in</div>
+          <button id="signout-btn" class="data-btn set-full" type="button">Sign out</button>
+        </div>
+      </div>
+    </span>
+  </div>
+
+  <!-- Weather sits below the date, left-aligned. -->
+  <div class="weather" id="weather" aria-label="Weather forecast" hidden>
+    <div class="w-slot" id="w-now">
+      <span class="w-icon" id="w-now-icon"></span>
+      <span class="w-temp" id="w-now-temp"></span>
+      <span class="w-label" id="w-now-label">NOW</span>
+      <span class="w-precip" id="w-now-precip"></span>
+    </div>
+    <div class="w-slot" id="w-h2">
+      <span class="w-icon" id="w-h2-icon"></span>
+      <span class="w-temp" id="w-h2-temp"></span>
+      <span class="w-label" id="w-h2-label"></span>
+      <span class="w-precip" id="w-h2-precip"></span>
+    </div>
+    <div class="w-slot" id="w-h4">
+      <span class="w-icon" id="w-h4-icon"></span>
+      <span class="w-temp" id="w-h4-temp"></span>
+      <span class="w-label" id="w-h4-label"></span>
+      <span class="w-precip" id="w-h4-precip"></span>
+    </div>
+    <div class="w-slot" id="w-h6">
+      <span class="w-icon" id="w-h6-icon"></span>
+      <span class="w-temp" id="w-h6-temp"></span>
+      <span class="w-label" id="w-h6-label"></span>
+      <span class="w-precip" id="w-h6-precip"></span>
+    </div>
+    <div class="w-slot" id="w-h8">
+      <span class="w-icon" id="w-h8-icon"></span>
+      <span class="w-temp" id="w-h8-temp"></span>
+      <span class="w-label" id="w-h8-label"></span>
+      <span class="w-precip" id="w-h8-precip"></span>
     </div>
   </div>
 </header>
