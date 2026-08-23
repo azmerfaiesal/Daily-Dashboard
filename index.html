@@ -297,11 +297,37 @@
     font-size: 11px; font-weight: 500; letter-spacing: 0.15em; text-transform: uppercase;
     display: flex; align-items: center; gap: 9px;
   }
-  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex: none; }
-  .dot.career { background: var(--career-purple); box-shadow: 0 0 9px var(--career-purple); }
-  .dot.personal { background: var(--personal-green); box-shadow: 0 0 9px var(--personal-green); }
-  .dot.clarity { background: var(--clarity-indigo); box-shadow: 0 0 9px var(--clarity-indigo); }
-  .dot.effie { background: var(--effie-pink); box-shadow: 0 0 9px var(--effie-pink); }
+  /* Each segment's colour code breathes on a slow beacon cycle. The halo is a
+     pseudo-element animating transform + opacity only, so it composites on the GPU
+     instead of repainting a box-shadow continuously. Colour comes from `color`, so
+     one keyframe serves every variant via currentColor. */
+  .dot {
+    position: relative;
+    width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex: none;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;   /* static glow, and the reduced-motion fallback */
+  }
+  .dot::after {
+    content: ''; position: absolute; inset: -6px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, currentColor 0%, transparent 68%);
+    animation: beacon 3.6s ease-in-out infinite;
+  }
+  .dot.career { color: var(--career-purple); }
+  .dot.personal { color: var(--personal-green); }
+  .dot.clarity { color: var(--clarity-indigo); }
+  .dot.effie { color: var(--effie-pink); }
+  /* Negative delays start each one mid-cycle, so the cards breathe independently
+     rather than blinking in unison. */
+  .dot.career::after { animation-delay: -0.9s; }
+  .dot.personal::after { animation-delay: -1.8s; }
+  .dot.effie::after { animation-delay: -2.7s; }
+
+  /* Tuned against both themes: a halo over near-white reads far weaker than the same
+     halo on the dark canvas, so the peak is set by what stays visible in light. */
+  @keyframes beacon {
+    0%, 100% { transform: scale(0.55); opacity: 0.20; }
+    50%      { transform: scale(1.40); opacity: 0.80; }
+  }
   .card .sub { color: var(--muted); font-size: 12px; line-height: 1.5; margin-bottom: 16px; }
 
   /* ── Layout editing ─────────────────────────────────────────────
@@ -508,11 +534,22 @@
     font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.02em;
   }
   .stale-dot {
+    position: relative;
     width: 5px; height: 5px; border-radius: 50%; flex: none;
-    background: var(--personal-green); box-shadow: 0 0 7px var(--personal-green);
+    color: var(--personal-green);
+    background: currentColor;
+    box-shadow: 0 0 7px currentColor;
   }
-  .stale-dot.stale { background: var(--hob-amber); box-shadow: 0 0 7px var(--hob-amber); }
-  .stale-dot.unknown { background: var(--faint); box-shadow: none; }
+  .stale-dot::after {
+    content: ''; position: absolute; inset: -5px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, currentColor 0%, transparent 68%);
+    animation: beacon 3.6s ease-in-out infinite;
+    animation-delay: -1.3s;
+  }
+  .stale-dot.stale { color: var(--hob-amber); }
+  /* Unknown freshness is not a signal, so it stays dark and still. */
+  .stale-dot.unknown { color: var(--faint); box-shadow: none; }
+  .stale-dot.unknown::after { display: none; }
 
   /* Hairline across the top of the viewport showing how far through the day (06:00–22:00) we are. */
   #day-progress {
@@ -630,6 +667,8 @@
     .ticker::before, .ticker::after { display: none; }
     #day-progress { transition: none; }
     .effie-tabs button, .icon-btn, .data-btn, textarea, #auth-gate input { transition: none; }
+    /* Drop the pulse; the dots keep their static box-shadow glow. */
+    .dot::after, .stale-dot::after { display: none; }
   }
 
   /* Below this width a hand-tuned desktop layout stops making sense, so one column is
