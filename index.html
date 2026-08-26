@@ -427,7 +427,6 @@
      stacked in one card. Each ticker is sized to its section rather than sharing
      one card-wide height, since a habit row is one line and a task row is three. */
   #habits-ticker { height: 136px; }
-  #notes-ticker { height: 118px; }
   .task-row .title { display: flex; align-items: baseline; gap: 7px; }
   .chip.p-high { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); }
   .chip.p-medium { border-color: color-mix(in srgb, var(--hob-amber) 55%, transparent); color: var(--hob-amber); }
@@ -459,9 +458,6 @@
     background: radial-gradient(circle, currentColor 0%, transparent 68%);
     animation: beacon 3.6s ease-in-out infinite;
   }
-  /* A note preview is one line in Home too — a long brain-dump should not push the
-     rest of the ticker row around. */
-  .note-row .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* ── Auth gate ─────────────────────────────────────────────────── */
   .data-btn {
@@ -840,11 +836,6 @@
     <div class="sub" style="margin-bottom:8px;" id="tasks-summary">Loading&hellip;</div>
     <div class="ticker">
       <div class="ticker-track" id="tasks-track"></div>
-    </div>
-
-    <label class="field-label">Recent Notes</label>
-    <div class="ticker" id="notes-ticker">
-      <div class="ticker-track" id="notes-track"></div>
     </div>
   </div>
 
@@ -1550,44 +1541,6 @@
     renderTodayHabits();
   }
 
-  // ---- Clarity: Recent Notes (read-only, last 3 by creation date) ----
-  const notesTrackEl = document.getElementById('notes-track');
-  let recentNotes = [];
-
-  function noteRowHtml(n) {
-    const text = (n.content || '').replace(/\s+/g, ' ').trim() || 'Empty note';
-    const tags = Array.isArray(n.tags) ? n.tags.filter(Boolean) : [];
-    const meta = [relTime(n.created_at), tags.length ? tags.join(', ') : null]
-      .filter(Boolean).map(esc).join(' &middot; ');
-    return '<div class="ticker-item note-row">' +
-      '<div class="title">' + esc(text) + '</div>' +
-      (meta ? '<div class="meta">' + meta + '</div>' : '') +
-    '</div>';
-  }
-
-  function renderRecentNotes() {
-    if (!recentNotes.length) {
-      fitTicker(notesTrackEl,
-        '<div class="ticker-item"><div class="title">Nothing written yet</div>' +
-        '<div class="meta">No notes in Clarity.</div></div>');
-      scheduleRelayout();
-      return;
-    }
-    fitTicker(notesTrackEl, recentNotes.map(noteRowHtml).join(''));
-    scheduleRelayout();
-  }
-
-  async function loadRecentNotes() {
-    if (!currentUser) return;
-    const { data, error } = await sb.from('clarity_notes')
-      .select('id, content, tags, created_at')
-      .eq('user_id', currentUser.id)
-      .order('created_at', { ascending: false })
-      .limit(3);
-    recentNotes = error ? [] : (data || []);
-    renderRecentNotes();
-  }
-
   // ---- Today's Apple Calendar events (read-only) ----
   // A static page cannot read the local calendar store, so a sync job on the Mac
   // upserts today's events into `calendar_events` and this only ever reads them.
@@ -1718,15 +1671,11 @@
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clarity_habits', filter: `user_id=eq.${uid}` },
           () => loadTodayHabits()).subscribe();
 
-    const notesCh = sb.channel('clarity-notes-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clarity_notes', filter: `user_id=eq.${uid}` },
-          () => loadRecentNotes()).subscribe();
-
     const calCh = sb.channel('calendar-events-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events', filter: `user_id=eq.${uid}` },
           () => loadCalendar()).subscribe();
 
-    realtimeChannels = [careerCh, tasksCh, habitsCh, notesCh, calCh];
+    realtimeChannels = [careerCh, tasksCh, habitsCh, calCh];
   }
 
   function unsubscribeRealtime() {
@@ -1750,8 +1699,8 @@
     const KEY = 'dash_layout_v1';
     const COLS = 12, MIN_SPAN = 3, MIN_H = 200, MAX_H = 1600, STEP_H = 40;
     const DEFAULTS = {
-      // Taller now that it carries three sections instead of one.
-      'clarity-card':  { span: 4, h: 720 },
+      // Sized for two sections (Habits, Due Today) now that Recent Notes is gone.
+      'clarity-card':  { span: 4, h: 560 },
       'card-calendar': { span: 4, h: 460 },
       'card-career':   { span: 4, h: 600 },
       'card-personal': { span: 4, h: 600 },
@@ -1967,7 +1916,6 @@
       loadCareerTracker(),
       loadTodayTasks(),
       loadTodayHabits(),
-      loadRecentNotes(),
       loadCalendar()
     ]);
     subscribeRealtime();
