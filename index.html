@@ -316,11 +316,15 @@
   .dot.personal { color: var(--personal-green); }
   .dot.clarity { color: var(--clarity-indigo); }
   .dot.effie { color: var(--effie-pink); }
+  /* Calendar reuses --dell-blue: defined as a token from the pre-redesign card set
+     but never assigned to a segment since, so it is free for the new one. */
+  .dot.calendar { color: var(--dell-blue); }
   /* Negative delays start each one mid-cycle, so the cards breathe independently
      rather than blinking in unison. */
   .dot.career::after { animation-delay: -0.9s; }
   .dot.personal::after { animation-delay: -1.8s; }
   .dot.effie::after { animation-delay: -2.7s; }
+  .dot.calendar::after { animation-delay: -0.45s; }
 
   /* Tuned against both themes: a halo over near-white reads far weaker than the same
      halo on the dark canvas, so the peak is set by what stays visible in light. */
@@ -419,8 +423,11 @@
     padding: 1px 5px; border-radius: 4px;
   }
 
-  /* Clarity + calendar: two read-only tickers stacked in one card. */
-  #clarity-card .ticker { height: 158px; }
+  /* Clarity: a read-only mirror of the app's own Home view, three sections
+     stacked in one card. Each ticker is sized to its section rather than sharing
+     one card-wide height, since a habit row is one line and a task row is three. */
+  #habits-ticker { height: 136px; }
+  #notes-ticker { height: 118px; }
   .task-row .title { display: flex; align-items: baseline; gap: 7px; }
   .chip.p-high { border-color: color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger); }
   .chip.p-medium { border-color: color-mix(in srgb, var(--hob-amber) 55%, transparent); color: var(--hob-amber); }
@@ -432,6 +439,29 @@
     display: inline-block; min-width: 84px;
     color: var(--faint); font-variant-numeric: tabular-nums;
   }
+  #card-calendar .ticker { height: 300px; }
+
+  /* Habit rows: the flame is Clarity's own mark (identical path data), coloured per
+     habit and, when a streak is live, pulsing on the same beacon keyframe as every
+     other colour code on the page rather than a bespoke animation. */
+  .habit-row .title { display: flex; align-items: center; gap: 7px; }
+  .habit-flame {
+    position: relative; display: inline-flex; flex: none; width: 14px; height: 14px;
+    color: var(--faint); opacity: .55;
+  }
+  .habit-flame svg {
+    width: 100%; height: 100%; display: block; stroke: currentColor; fill: none;
+    stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .habit-flame.beaming { opacity: 1; }
+  .habit-flame.beaming::after {
+    content: ''; position: absolute; inset: -5px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, currentColor 0%, transparent 68%);
+    animation: beacon 3.6s ease-in-out infinite;
+  }
+  /* A note preview is one line in Home too — a long brain-dump should not push the
+     rest of the ticker row around. */
+  .note-row .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* ── Auth gate ─────────────────────────────────────────────────── */
   .data-btn {
@@ -795,18 +825,32 @@
 
 <div class="grid" id="dashboard-content" style="display:none;">
 
-  <!-- Clarity: today's tasks and calendar, both read-only -->
+  <!-- Clarity: a read-only mirror of the app's own Home view -->
   <div class="card" id="clarity-card">
     <h2><span class="dot clarity"></span>Clarity</h2>
-    <div class="sub">Today at a glance &middot; read-only</div>
+    <div class="sub">Home, mirrored from the Clarity app &middot; read-only</div>
 
-    <label class="field-label">Today&rsquo;s Tasks</label>
+    <label class="field-label">Habits</label>
+    <div class="sub" style="margin-bottom:8px;" id="habits-summary">Loading&hellip;</div>
+    <div class="ticker" id="habits-ticker">
+      <div class="ticker-track" id="habits-track"></div>
+    </div>
+
+    <label class="field-label">Due Today</label>
     <div class="sub" style="margin-bottom:8px;" id="tasks-summary">Loading&hellip;</div>
     <div class="ticker">
       <div class="ticker-track" id="tasks-track"></div>
     </div>
 
-    <label class="field-label">Today&rsquo;s Calendar</label>
+    <label class="field-label">Recent Notes</label>
+    <div class="ticker" id="notes-ticker">
+      <div class="ticker-track" id="notes-track"></div>
+    </div>
+  </div>
+
+  <!-- Today's Calendar: its own card, synced from Apple Calendar (see tools/) -->
+  <div class="card" id="card-calendar">
+    <h2><span class="dot calendar"></span>Today&rsquo;s Calendar</h2>
     <div class="sub feed-meta" style="margin-bottom:8px;">
       <span class="stale-dot unknown" id="cal-dot"></span>
       <span id="cal-freshness">Loading&hellip;</span>
@@ -1027,6 +1071,7 @@
     if (lastSeenDate && d !== lastSeenDate && currentUser) {
       // Rolled past midnight on a tab that has been open all night.
       loadTodayTasks();
+      loadTodayHabits();
       loadCalendar();
     }
     lastSeenDate = d;
@@ -1315,9 +1360,15 @@
       return;
     }
     const overdue = todayTasks.filter(t => t.due_date < today).length;
+    // Capped at 5 to mirror Home's own dueTasks list, but the summary always states
+    // the true count — Home's badge shows only what it renders, which would read as
+    // "5" on a day with 8 due and quietly hide three of them.
+    const shown = todayTasks.slice(0, 5);
     tasksSummaryEl.textContent = todayTasks.length + ' open' +
-      (overdue ? ' \u00b7 ' + overdue + ' overdue' : '') + ' \u00b7 live from Clarity';
-    fitTicker(tasksTrackEl, todayTasks.map(t => taskRowHtml(t, today)).join(''));
+      (overdue ? ' \u00b7 ' + overdue + ' overdue' : '') +
+      (todayTasks.length > shown.length ? ' \u00b7 showing ' + shown.length : '') +
+      ' \u00b7 live from Clarity';
+    fitTicker(tasksTrackEl, shown.map(t => taskRowHtml(t, today)).join(''));
     scheduleRelayout();
   }
 
@@ -1340,6 +1391,201 @@
     (listsRes.data || []).forEach(l => { clarityListNames[l.id] = l.name; });
     todayTasks = tasksRes.error ? [] : (tasksRes.data || []);
     renderTodayTasks();
+  }
+
+
+  // ---- Clarity: habit maths, ported from the app's own habitUtils.ts ----
+  // "Due today" and streak counts have to match what Clarity itself would show, so
+  // this is a direct line-for-line port rather than a fresh approximation: same
+  // amountOn/requiredPerDay/isCompletedOn/isScheduled/startDate/currentStreak, on
+  // the same local 'YYYY-MM-DD' dates via addLocalDays/parseLocalDate.
+  //
+  // One real gap: Clarity keeps "week starts on Monday?" in that device's own
+  // localStorage, which this page has no access to (different origin, and there is
+  // no longer an iframe to ask). Streaks for per-week habits use Clarity's own
+  // fallback of Sunday — matching every account until someone changes that setting,
+  // and only affecting the 'timesPerWeek' repetition type even then.
+  const HABIT_WEEK_START = 0;
+  const HABIT_MAX_WALK = 3660, HABIT_MAX_WEEKS = 530;
+
+  function parseLocalDate(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  function addLocalDays(dateStr, days) {
+    const d = parseLocalDate(dateStr);
+    d.setDate(d.getDate() + days);
+    return localDateStr(d);
+  }
+  function habitAmountOn(h, dateStr) { return (h.logs && h.logs[dateStr]) || 0; }
+  function habitRequiredPerDay(h) {
+    if (h.track_by === 'checkoff') return 1;
+    return h.daily_target && h.daily_target > 0 ? h.daily_target : 1;
+  }
+  function habitCompletedOn(h, dateStr) { return habitAmountOn(h, dateStr) >= habitRequiredPerDay(h); }
+  function habitScheduledOn(h, dateStr) {
+    const d = parseLocalDate(dateStr);
+    switch (h.repetition_type) {
+      case 'daily': return true;
+      case 'timesPerWeek': return true;   // no fixed days — any day can carry a completion
+      case 'weekly': return (h.days_of_week || []).includes(d.getDay());
+      case 'monthly': return (h.dates_of_month || []).includes(d.getDate());
+      default: return false;
+    }
+  }
+  function habitStartDate(h) {
+    const created = (h.created_at || '').slice(0, 10);
+    const dates = Object.keys(h.logs || {});
+    if (!dates.length) return created;
+    const earliest = dates.reduce((a, b) => (a < b ? a : b));
+    return earliest < created ? earliest : created;
+  }
+  function habitWeekStart(dateStr) {
+    return addLocalDays(dateStr, -(((parseLocalDate(dateStr).getDay()) - HABIT_WEEK_START + 7) % 7));
+  }
+  function habitCompletionsInWeek(h, dateStr) {
+    const from = habitWeekStart(dateStr);
+    let n = 0;
+    for (let i = 0; i < 7; i++) if (habitCompletedOn(h, addLocalDays(from, i))) n++;
+    return n;
+  }
+  function habitWeeklyTarget(h) { return h.times_per_week && h.times_per_week > 0 ? h.times_per_week : 1; }
+
+  // Consecutive completed units, counting back from the most recent one genuinely
+  // past due — the unit in progress (today, or this week) has not been failed yet.
+  function habitCurrentStreak(h, today) {
+    if (h.repetition_type === 'timesPerWeek') {
+      const target = habitWeeklyTarget(h);
+      const firstWeek = habitWeekStart(habitStartDate(h));
+      let cursor = habitWeekStart(today);
+      if (habitCompletionsInWeek(h, cursor) < target) cursor = addLocalDays(cursor, -7);
+      let streak = 0;
+      for (let i = 0; i < HABIT_MAX_WEEKS && cursor >= firstWeek; i++) {
+        if (habitCompletionsInWeek(h, cursor) < target) break;
+        streak++;
+        cursor = addLocalDays(cursor, -7);
+      }
+      return streak;
+    }
+    const start = habitStartDate(h);
+    let cursor = today;
+    if (habitScheduledOn(h, cursor) && !habitCompletedOn(h, cursor)) cursor = addLocalDays(cursor, -1);
+    let streak = 0;
+    for (let i = 0; i < HABIT_MAX_WALK && cursor >= start; i++) {
+      if (habitScheduledOn(h, cursor)) {
+        if (!habitCompletedOn(h, cursor)) break;
+        streak++;
+      }
+      cursor = addLocalDays(cursor, -1);
+    }
+    return streak;
+  }
+  function formatHabitAmount(h, value) {
+    if (h.track_by !== 'duration') return String(value);
+    if (value < 60) return value + 'm';
+    const hh = Math.floor(value / 60), mm = value % 60;
+    return mm === 0 ? hh + 'h' : hh + 'h ' + mm + 'm';
+  }
+
+  // ---- Clarity: Habits (read-only, mirrors Home's due-today list) ----
+  const habitsTrackEl = document.getElementById('habits-track');
+  const habitsSummaryEl = document.getElementById('habits-summary');
+  let todayHabits = [];
+
+  // Clarity's own flame mark — identical path data, so it reads as the same icon
+  // rather than a dashboard reinterpretation of it.
+  const FLAME_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M12 2.2c0 3.5 1.7 5.6 2.9 7 .8-.7 1.4-1.8 1.6-3.1C17.9 7.7 19 9.9 19 12.4a7 7 0 0 1-14 0c0-5.2 5.1-7.9 7-10.2Z"/>' +
+    '<path d="M12 20.4a3.3 3.3 0 0 1-3.3-3.3c0-2 1.9-3.1 2.7-5 .9 1.9 3.2 2.7 3.2 5a3.3 3.3 0 0 1-2.6 3.3Z"/>' +
+    '</svg>';
+  // habit.color is this account's own data, not scraped, but it still lands in a
+  // style="" attribute built by string concatenation — validate the shape rather
+  // than trust it verbatim.
+  const safeHabitColor = c => (/^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : 'var(--accent)');
+
+  function habitRowHtml(h, today) {
+    const need = habitRequiredPerDay(h);
+    const amount = habitAmountOn(h, today);
+    const done = amount >= need;
+    const streak = habitCurrentStreak(h, today);
+    const unit = h.repetition_type === 'timesPerWeek' ? 'w' : 'd';
+    const amountText = h.track_by === 'duration'
+      ? formatHabitAmount(h, amount) + ' / ' + formatHabitAmount(h, need)
+      : (need > 1 ? amount + ' / ' + need + ' today' : (done ? 'Done today' : 'Not yet today'));
+    return '<div class="ticker-item habit-row">' +
+      '<div class="title">' +
+        '<span class="habit-flame' + (streak > 0 ? ' beaming' : '') + '" style="color:' +
+          safeHabitColor(h.color) + '" aria-hidden="true">' + FLAME_SVG + '</span>' +
+        esc(h.name || 'Untitled habit') +
+      '</div>' +
+      '<div class="meta">' + esc(amountText) + (streak > 0 ? ' \u00b7 ' + streak + unit + ' streak' : '') + '</div>' +
+    '</div>';
+  }
+
+  function renderTodayHabits() {
+    if (!todayHabits.length) {
+      fitTicker(habitsTrackEl,
+        '<div class="ticker-item"><div class="title">Nothing scheduled today</div>' +
+        '<div class="meta">No active habits due.</div></div>');
+      habitsSummaryEl.textContent = 'Nothing scheduled \u00b7 live from Clarity';
+      scheduleRelayout();
+      return;
+    }
+    const today = localDateStr(new Date());
+    const done = todayHabits.filter(h => habitCompletedOn(h, today)).length;
+    habitsSummaryEl.textContent = done + '/' + todayHabits.length + ' done \u00b7 live from Clarity';
+    fitTicker(habitsTrackEl, todayHabits.map(h => habitRowHtml(h, today)).join(''));
+    scheduleRelayout();
+  }
+
+  async function loadTodayHabits() {
+    if (!currentUser) return;
+    const today = localDateStr(new Date());
+    const { data, error } = await sb.from('clarity_habits')
+      .select('id, name, color, repetition_type, days_of_week, dates_of_month, times_per_week, track_by, daily_target, logs, created_at, sort_order')
+      .eq('user_id', currentUser.id)
+      .is('archived_at', null)
+      .order('sort_order', { ascending: true });
+    todayHabits = error ? [] : (data || []).filter(h => habitScheduledOn(h, today));
+    renderTodayHabits();
+  }
+
+  // ---- Clarity: Recent Notes (read-only, last 3 by creation date) ----
+  const notesTrackEl = document.getElementById('notes-track');
+  let recentNotes = [];
+
+  function noteRowHtml(n) {
+    const text = (n.content || '').replace(/\s+/g, ' ').trim() || 'Empty note';
+    const tags = Array.isArray(n.tags) ? n.tags.filter(Boolean) : [];
+    const meta = [relTime(n.created_at), tags.length ? tags.join(', ') : null]
+      .filter(Boolean).map(esc).join(' &middot; ');
+    return '<div class="ticker-item note-row">' +
+      '<div class="title">' + esc(text) + '</div>' +
+      (meta ? '<div class="meta">' + meta + '</div>' : '') +
+    '</div>';
+  }
+
+  function renderRecentNotes() {
+    if (!recentNotes.length) {
+      fitTicker(notesTrackEl,
+        '<div class="ticker-item"><div class="title">Nothing written yet</div>' +
+        '<div class="meta">No notes in Clarity.</div></div>');
+      scheduleRelayout();
+      return;
+    }
+    fitTicker(notesTrackEl, recentNotes.map(noteRowHtml).join(''));
+    scheduleRelayout();
+  }
+
+  async function loadRecentNotes() {
+    if (!currentUser) return;
+    const { data, error } = await sb.from('clarity_notes')
+      .select('id, content, tags, created_at')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(3);
+    recentNotes = error ? [] : (data || []);
+    renderRecentNotes();
   }
 
   // ---- Today's Apple Calendar events (read-only) ----
@@ -1468,11 +1714,19 @@
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clarity_tasks', filter: `user_id=eq.${uid}` },
           () => loadTodayTasks()).subscribe();
 
+    const habitsCh = sb.channel('clarity-habits-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clarity_habits', filter: `user_id=eq.${uid}` },
+          () => loadTodayHabits()).subscribe();
+
+    const notesCh = sb.channel('clarity-notes-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clarity_notes', filter: `user_id=eq.${uid}` },
+          () => loadRecentNotes()).subscribe();
+
     const calCh = sb.channel('calendar-events-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_events', filter: `user_id=eq.${uid}` },
           () => loadCalendar()).subscribe();
 
-    realtimeChannels = [careerCh, tasksCh, calCh];
+    realtimeChannels = [careerCh, tasksCh, habitsCh, notesCh, calCh];
   }
 
   function unsubscribeRealtime() {
@@ -1496,7 +1750,9 @@
     const KEY = 'dash_layout_v1';
     const COLS = 12, MIN_SPAN = 3, MIN_H = 200, MAX_H = 1600, STEP_H = 40;
     const DEFAULTS = {
-      'clarity-card':  { span: 4, h: 600 },
+      // Taller now that it carries three sections instead of one.
+      'clarity-card':  { span: 4, h: 720 },
+      'card-calendar': { span: 4, h: 460 },
       'card-career':   { span: 4, h: 600 },
       'card-personal': { span: 4, h: 600 },
       'card-effie':    { span: 4, h: 600 }
@@ -1710,6 +1966,8 @@
     await Promise.all([
       loadCareerTracker(),
       loadTodayTasks(),
+      loadTodayHabits(),
+      loadRecentNotes(),
       loadCalendar()
     ]);
     subscribeRealtime();
