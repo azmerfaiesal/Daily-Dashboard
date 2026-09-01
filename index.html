@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Daily Dashboard — Azmer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="description" content="Azmer's daily dashboard — tasks, career tracking, Malaysia tech news, Cyberjaya DBA jobs, weather and Effie's school day, in one place.">
+<meta name="description" content="Azmer's daily dashboard — tasks, career tracking, Malaysia tech & economy news, AI news, Cyberjaya DBA jobs, weather and Effie's school day, in one place.">
 <meta name="color-scheme" content="dark light">
 <!-- Single tag, driven by JS so an explicit theme override repaints the mobile browser chrome too. -->
 <meta name="theme-color" id="theme-color-meta" content="#06070b">
@@ -877,13 +877,22 @@
 
     <div class="quote-box" id="quote"></div>
 
-    <label class="field-label">Malaysia Tech News — Top 10</label>
+    <label class="field-label">Today's News — Malaysia Tech &amp; Economy Top 10</label>
     <div class="sub feed-meta" style="margin-bottom:8px;">
       <span class="stale-dot unknown" id="news-dot"></span>
       <span id="news-freshness">Loading&hellip;</span>
     </div>
     <div class="ticker">
       <div class="ticker-track" id="tech-news-track"></div>
+    </div>
+
+    <label class="field-label" style="margin-top:14px;">AI News — Top 10 Worldwide</label>
+    <div class="sub feed-meta" style="margin-bottom:8px;">
+      <span class="stale-dot unknown" id="ai-news-dot"></span>
+      <span id="ai-news-freshness">Loading&hellip;</span>
+    </div>
+    <div class="ticker">
+      <div class="ticker-track" id="ai-news-track"></div>
     </div>
 
   </div>
@@ -1252,11 +1261,9 @@
     .on('postgres_changes', { event: '*', schema: 'public', table: 'dba_jobs' }, () => loadDbaJobs())
     .subscribe();
 
-  // ---- Malaysia tech news ticker (live, via the `tech_news` table) ----
-  // Refreshed daily by the "daily-malaysia-tech-news" scheduled task at 8:08am.
-  // Public read-only table — no auth needed, so this loads independent of sign-in state.
-  let techNews = [];
-  const techNewsTrackEl = document.getElementById('tech-news-track');
+  // ---- Today's News + AI News tickers (live, via the `tech_news` / `ai_news` tables) ----
+  // Refreshed daily by the "daily-todays-news" scheduled task at 8:00am (both feeds).
+  // Public read-only tables — no auth needed, so these load independent of sign-in state.
   const NEWS_STALE_HOURS = 30; // daily cadence, with slack for a late run
 
   function newsRowHtml(n) {
@@ -1265,48 +1272,68 @@
     const inner =
       '<div class="title">' + esc(n.headline) + '</div>' +
       '<div class="meta">' + meta + '</div>';
-    // tech_news carries no source URL, so link the headline to a search for it —
-    // one tap from "interesting" to the actual story.
-    const q = 'https://www.google.com/search?q=' + encodeURIComponent(n.headline || '');
-    return '<div class="ticker-item"><a class="feed-link" href="' + esc(q) +
-      '" target="_blank" rel="noopener noreferrer" title="Search for this story">' + inner + '</a></div>';
+    // Link straight to the story when the feed carries a URL; otherwise fall back to
+    // a search for the headline — one tap from "interesting" to the actual story.
+    const href = n.url
+      ? esc(n.url)
+      : 'https://www.google.com/search?q=' + encodeURIComponent(n.headline || '');
+    return '<div class="ticker-item"><a class="feed-link" href="' + href +
+      '" target="_blank" rel="noopener noreferrer" title="Open this story">' + inner + '</a></div>';
   }
 
-  function renderTechNews() {
-    if (!techNews.length) {
-      fitTicker(techNewsTrackEl,
-        '<div class="ticker-item"><div class="title">No news loaded yet</div>' +
-        '<div class="meta">Waiting on the daily 8:08am refresh, or check your connection.</div></div>');
+  // Shared factory: one scrolling news ticker wired to one read-only table.
+  // select('*') keeps it schema-agnostic — tech_news has no url column, ai_news does.
+  function makeNewsTicker(opts) {
+    let items = [];
+    const trackEl = document.getElementById(opts.trackId);
+
+    function render() {
+      if (!items.length) {
+        fitTicker(trackEl,
+          '<div class="ticker-item"><div class="title">No news loaded yet</div>' +
+          '<div class="meta">' + opts.emptyText + '</div></div>');
+        scheduleRelayout();
+        return;
+      }
+      fitTicker(trackEl, items.map(newsRowHtml).join(''));
       scheduleRelayout();
-      return;
     }
-    fitTicker(techNewsTrackEl, techNews.map(newsRowHtml).join(''));
-    scheduleRelayout();
-  }
-  renderTechNews();
+    render();
 
-  async function loadTechNews() {
-    const { data, error } = await sb.from('tech_news')
-      .select('headline, source, published_date, created_at')
-      .order('published_date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(10);
-    if (error || !data || !data.length) {
-      stampFeed('news-dot', 'news-freshness', null, techNews.length, NEWS_STALE_HOURS, 'daily 8:08am refresh');
-      return;
+    async function load() {
+      const { data, error } = await sb.from(opts.table)
+        .select('*')
+        .order('published_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error || !data || !data.length) {
+        stampFeed(opts.dotId, opts.freshnessId, null, items.length, NEWS_STALE_HOURS, 'daily 8:00am refresh');
+        return;
+      }
+      items = data;
+      render();
+      const newest = data.reduce((a, r) => (r.created_at > a ? r.created_at : a), data[0].created_at);
+      stampFeed(opts.dotId, opts.freshnessId, newest, data.length, NEWS_STALE_HOURS, 'daily 8:00am refresh');
     }
-    techNews = data;
-    renderTechNews();
-    const newest = data.reduce((a, r) => (r.created_at > a ? r.created_at : a), data[0].created_at);
-    stampFeed('news-dot', 'news-freshness', newest, data.length, NEWS_STALE_HOURS, 'daily 8:08am refresh');
-  }
-  loadTechNews();
+    load();
 
-  // Reflect same-day refreshes (e.g. the 8:08am scheduled task) without needing a reload.
-  sb.channel('tech-news-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'tech_news' }, () => {
-      loadTechNews();
-    }).subscribe();
+    // Reflect same-day refreshes (e.g. the 8:00am scheduled task) without needing a reload.
+    sb.channel(opts.table + '-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: opts.table }, () => {
+        load();
+      }).subscribe();
+  }
+
+  makeNewsTicker({
+    trackId: 'tech-news-track', table: 'tech_news',
+    dotId: 'news-dot', freshnessId: 'news-freshness',
+    emptyText: 'Waiting on the daily 8:00am refresh, or check your connection.'
+  });
+  makeNewsTicker({
+    trackId: 'ai-news-track', table: 'ai_news',
+    dotId: 'ai-news-dot', freshnessId: 'ai-news-freshness',
+    emptyText: 'Waiting on the daily 8:00am refresh \u2014 live once the ai_news table is created.'
+  });
 
   // ---- Clarity: today's tasks (read-only) ----
   // Mirrors Clarity's own Today view exactly: not deleted, not completed, and a due
