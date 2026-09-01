@@ -1745,6 +1745,15 @@
       return m ? +m[1] : ((DEFAULTS[c.id] && DEFAULTS[c.id].span) || 4);
     };
     const defFor = id => DEFAULTS[id] || { span: 4, h: 600 };
+    // Cards sharing a horizontal band (same top edge) share a grid row. Growing a
+    // card past its row's free columns would wrap a row-mate onto a later row —
+    // resizing one card would move the others. Cap the span to the row instead.
+    const rowMates = card => {
+      const top = card.getBoundingClientRect().top;
+      return cards().filter(c => c !== card && Math.abs(c.getBoundingClientRect().top - top) < 4);
+    };
+    const maxSpanFor = card =>
+      clamp(COLS - rowMates(card).reduce((s, c) => s + spanOf(c), 0), MIN_SPAN, COLS);
 
     function read() {
       try {
@@ -1766,13 +1775,29 @@
       const known = new Set(order);
       // Any card missing from a saved layout (e.g. one added later) goes to the end.
       const full = order.concat(cards().map(c => c.id).filter(id => !known.has(id)));
-      full.forEach((id, i) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const d = (sizes && sizes[id]) || defFor(id);
+      const els = full.map(id => document.getElementById(id)).filter(Boolean);
+
+      // Pass 1: order + height. (Heights never affect which row a card lands in —
+      // packing is column-driven — so these can't interfere with pass 2.)
+      els.forEach((el, i) => {
+        const d = (sizes && sizes[el.id]) || defFor(el.id);
         el.style.order = i;
-        el.style.gridColumn = 'span ' + clamp(d.span, MIN_SPAN, COLS);
         el.style.height = clamp(d.h, MIN_H, MAX_H) + 'px';
+      });
+
+      // Pass 2: spans, via an exact simulation of the grid's sparse row packing
+      // (cards fill rows of COLS columns in order, wrapping when full). A card's
+      // span is capped at its row's remaining columns, so a layout restored from
+      // localStorage — saved under an older arrangement — can never push other
+      // cards onto different rows.
+      const want = el => clamp((sizes && sizes[el.id] && sizes[el.id].span) || defFor(el.id).span, MIN_SPAN, COLS);
+      let used = 0;
+      els.forEach(el => {
+        if (used >= COLS) used = 0;                    // row full -> next card starts a new row
+        const cap = Math.max(MIN_SPAN, COLS - used);  // free columns in this row
+        const span = Math.min(want(el), cap);
+        el.style.gridColumn = 'span ' + span;
+        used += span;
       });
     }
 
@@ -1827,7 +1852,10 @@
       if (!rz) return;
       const { gap, col } = metrics();
       // Width snaps to whole columns; height is free within bounds.
-      const span = clamp(Math.round((rz.w + (e.clientX - rz.x) + gap) / (col + gap)), MIN_SPAN, COLS);
+      // Span is capped at the row's free columns so resizing can never push a
+      // row-mate onto a later row — computed once per gesture (in startResize)
+      // so a shrinking mate doesn't shift the goalposts mid-drag.
+      const span = clamp(Math.round((rz.w + (e.clientX - rz.x) + gap) / (col + gap)), MIN_SPAN, rz.maxSpan);
       rz.card.style.gridColumn = 'span ' + span;
       rz.card.style.height = clamp(rz.h + (e.clientY - rz.y), MIN_H, MAX_H) + 'px';
     }
@@ -1883,7 +1911,9 @@
           e.preventDefault();
           e.stopPropagation();
           const r = card.getBoundingClientRect();
-          rz = { card, x: e.clientX, y: e.clientY, w: r.width, h: r.height };
+          // Cap this gesture's span to the row's free columns, frozen at gesture
+          // start — resizing must never displace other cards.
+          rz = { card, x: e.clientX, y: e.clientY, w: r.width, h: r.height, maxSpan: maxSpanFor(card) };
           card.classList.add('resizing');
           document.body.classList.add('layout-resizing');
           try { handle.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1891,8 +1921,9 @@
         handle.addEventListener('keydown', e => {
           if (compact.matches) return;
           const span = spanOf(card), h = card.getBoundingClientRect().height;
-          if (e.key === 'ArrowLeft') card.style.gridColumn = 'span ' + clamp(span - 1, MIN_SPAN, COLS);
-          else if (e.key === 'ArrowRight') card.style.gridColumn = 'span ' + clamp(span + 1, MIN_SPAN, COLS);
+          const max = maxSpanFor(card);
+          if (e.key === 'ArrowLeft') card.style.gridColumn = 'span ' + clamp(span - 1, MIN_SPAN, max);
+          else if (e.key === 'ArrowRight') card.style.gridColumn = 'span ' + clamp(span + 1, MIN_SPAN, max);
           else if (e.key === 'ArrowUp') card.style.height = clamp(h - STEP_H, MIN_H, MAX_H) + 'px';
           else if (e.key === 'ArrowDown') card.style.height = clamp(h + STEP_H, MIN_H, MAX_H) + 'px';
           else return;
